@@ -1,7 +1,8 @@
 
+'use client';
+
 import type { Contact } from '@/types';
-import Image from 'next/image';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Mail, Phone, Edit, Trash2, MoreVertical, MapPin, MessageSquare } from 'lucide-react';
@@ -12,6 +13,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useLongPress } from '@/hooks/use-long-press';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { useToast } from '@/hooks/use-toast';
+import { useRef } from 'react';
 
 interface ContactCardProps {
   contact: Contact;
@@ -20,6 +25,10 @@ interface ContactCardProps {
 }
 
 export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
+  const isMobile = useIsMobile();
+  const { toast } = useToast();
+  const dropdownTriggerRef = useRef<HTMLButtonElement>(null);
+
   const initials = contact.name
     .split(' ')
     .map((n) => n[0])
@@ -42,33 +51,87 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
     return phone.replace(/[^0-9]/g, ''); // WhatsApp links usually prefer digits only
   };
 
+  const copyToClipboard = async (text: string, type: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: `${type} Copied`,
+        description: `${text} copied to clipboard.`,
+        className: "bg-accent text-accent-foreground",
+      });
+    } catch (err) {
+      toast({
+        title: `Failed to Copy ${type}`,
+        description: "Could not copy to clipboard. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const nameLongPressProps = useLongPress(
+    () => { if (isMobile) copyToClipboard(contact.name, "Name"); },
+    () => {} // No click action for name title itself
+  );
+
+  const phoneLongPressProps = useLongPress(
+    () => { if (isMobile) copyToClipboard(contact.phoneNumber, "Phone Number"); },
+    (e) => { 
+      // Default click behavior for phone (tel link)
+      // We stop propagation if it's a click, to allow the link to work
+      // without triggering card-level events if any.
+      e.stopPropagation();
+    }
+  );
+
+  const cardLongPressProps = useLongPress(
+    () => {
+      if (isMobile && dropdownTriggerRef.current) {
+        dropdownTriggerRef.current.click(); // Programmatically click the hidden trigger
+      }
+    },
+    () => {
+      // Default card click action if any (currently none specific)
+    }
+  );
+
   return (
-    <Card className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
+    <Card 
+      className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col"
+      {...(isMobile ? cardLongPressProps : {})}
+    >
       <CardHeader className="flex flex-row items-start justify-between gap-4 p-4">
-        <div className="flex items-center gap-4">
-          <Avatar className="h-12 w-12">
+        <div className="flex items-center gap-4 flex-grow min-w-0">
+          <Avatar className="h-12 w-12 shrink-0">
             {contact.avatarUrl ? (
               <AvatarImage src={contact.avatarUrl} alt={contact.name} data-ai-hint="person avatar"/>
             ) : (
               <AvatarFallback>{initials}</AvatarFallback>
             )}
           </Avatar>
-          <div>
-            <CardTitle className="text-lg">{contact.name}</CardTitle>
+          <div className="min-w-0">
+            <CardTitle 
+              className="text-lg truncate" 
+              title={contact.name}
+              {...(isMobile ? nameLongPressProps : {})}
+            >
+              {contact.name}
+            </CardTitle>
             {contact.email && (
               <a
                 href={`mailto:${contact.email}`}
-                className="text-xs flex items-center gap-1 text-muted-foreground hover:text-primary hover:underline"
-                onClick={(e) => e.stopPropagation()} // Prevent card click if any
+                className="text-xs flex items-center gap-1 text-muted-foreground hover:text-primary hover:underline truncate"
+                onClick={(e) => e.stopPropagation()}
+                title={contact.email}
               >
-                <Mail className="h-3 w-3" /> {contact.email}
+                <Mail className="h-3 w-3 shrink-0" /> 
+                <span className="truncate">{contact.email}</span>
               </a>
             )}
           </div>
         </div>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+          <DropdownMenuTrigger asChild ref={dropdownTriggerRef}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -80,13 +143,15 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
       </CardHeader>
       <CardContent className="p-4 pt-0 flex-grow">
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-          <Phone className="h-4 w-4" />
+          <Phone className="h-4 w-4 shrink-0" />
           <a 
             href={`tel:${cleanPhoneNumberForTel(contact.phoneNumber)}`} 
-            className="hover:text-primary hover:underline"
+            className="hover:text-primary hover:underline truncate"
             onClick={(e) => e.stopPropagation()}
+            {...(isMobile ? phoneLongPressProps : {})}
+            title={contact.phoneNumber}
           >
-            {contact.phoneNumber}
+            <span className="truncate">{contact.phoneNumber}</span>
           </a>
           <a
             href={`https://wa.me/${cleanPhoneNumberForWhatsApp(contact.phoneNumber)}`}
@@ -96,7 +161,7 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
             title="Open in WhatsApp"
             onClick={(e) => e.stopPropagation()}
           >
-            <MessageSquare className="h-4 w-4" />
+            <MessageSquare className="h-4 w-4 shrink-0" />
           </a>
         </div>
         {contact.alternativeNumbers && contact.alternativeNumbers.length > 0 && (
@@ -118,7 +183,7 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
         {displayAddress && (
           <div className="flex items-start gap-2 text-xs text-muted-foreground mb-2">
             <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            <span>{displayAddress}</span>
+            <span className="break-words">{displayAddress}</span>
           </div>
         )}
          {contact.notes && (
@@ -139,3 +204,4 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
     </Card>
   );
 }
+
