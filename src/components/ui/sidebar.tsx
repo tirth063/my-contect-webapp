@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet" // Added SheetTitle
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
@@ -195,7 +195,7 @@ const Sidebar = React.forwardRef<
 
     if (isMobile) {
       return (
-        <Sheet open={openMobile} onOpenChange={setOpenMobile}> 
+        <Sheet open={openMobile} onOpenChange={setOpenMobile}>
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"
@@ -207,6 +207,7 @@ const Sidebar = React.forwardRef<
             }
             side={side}
           >
+            <SheetTitle className="sr-only">Main Navigation Menu</SheetTitle> {/* Added for accessibility */}
             <div className="flex h-full w-full flex-col">{children}</div>
           </SheetContent>
         </Sheet>
@@ -549,32 +550,33 @@ const SidebarMenuButton = React.forwardRef<
       size = "default",
       tooltip,
       className,
-      children, 
+      children,
       ...props
     },
     ref
   ) => {
-    const Comp = asChild ? Slot : "button";
-    const { isMobile, state } = useSidebar();
+    const Comp = asChild ? Slot : "button"
+    const { isMobile, state } = useSidebar()
 
-    let renderableContent: React.ReactNode;
+    let renderableContent: React.ReactNode
 
     if (asChild) {
-      // When asChild is true, Slot takes the original children (e.g., Link).
-      // The children are responsible for their own internal layout and styling
-      // for collapsed/expanded states (e.g., hiding text).
       renderableContent = children;
     } else {
-      // When rendering a normal button, extract icon and text to apply specific styling.
-      let icon: React.ReactNode = null;
-      const textElements: React.ReactNode[] = [];
-      React.Children.forEach(children, child => {
-        if (typeof child !== 'string' && typeof child !== 'number' && React.isValidElement(child) && !icon) {
-          icon = child;
+      let icon: React.ReactNode = null
+      const textElements: React.ReactNode[] = []
+      React.Children.forEach(children, (child) => {
+        if (
+          typeof child !== "string" &&
+          typeof child !== "number" &&
+          React.isValidElement(child) &&
+          !icon // Take the first valid element as icon
+        ) {
+          icon = child
         } else {
-          textElements.push(child);
+          textElements.push(child)
         }
-      });
+      })
 
       renderableContent = (
         <>
@@ -582,17 +584,17 @@ const SidebarMenuButton = React.forwardRef<
           <span
             className={cn(
               "flex-grow",
-              // If sidebar state is collapsed, text becomes sr-only.
-              // This relies on the button itself shrinking via sidebarMenuButtonVariants.
+              // When not asChild, text hides based on button size which is controlled by group-data-[collapsible=icon]
+              // For asChild, the child (e.g. Link) must handle its own text visibility.
               state === "expanded" ? "min-w-0" : "sr-only"
             )}
           >
             {textElements}
           </span>
         </>
-      );
+      )
     }
-    
+
     const button = (
       <Comp
         ref={ref}
