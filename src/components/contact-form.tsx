@@ -25,20 +25,20 @@ import {
 } from '@/components/ui/select';
 import { DUMMY_FAMILY_GROUPS, DUMMY_CONTACTS } from '@/lib/dummy-data';
 import type { Contact, FamilyGroup } from '@/types';
-import { PlusCircle, Trash2, Sparkles, X } from 'lucide-react';
+import { PlusCircle, Trash2, Sparkles, UserCircle } from 'lucide-react'; // Added UserCircle
 import { SmartSuggestionModal } from './smart-suggestion-modal';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 
-const MAX_ALTERNATIVE_NUMBERS = 5; // Reduced for better UI, original was 20
-const NONE_OPTION_VALUE = "_NONE_"; // Special value for the "None" option in Select
+const MAX_ALTERNATIVE_NUMBERS = 5;
+const NONE_OPTION_VALUE = "_NONE_";
 
 const contactFormSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   phoneNumber: z.string().min(10, { message: 'Phone number must be at least 10 digits.' }),
   email: z.string().email({ message: 'Invalid email address.' }).optional().or(z.literal('')),
-  avatarUrl: z.string().url({ message: 'Invalid URL.'}).optional().or(z.literal('')),
+  avatarUrl: z.string().optional(), // Changed to allow Data URLs
   alternativeNumbers: z.array(z.object({ value: z.string().min(10, { message: 'Phone number must be at least 10 digits.'}).optional().or(z.literal('')) })).max(MAX_ALTERNATIVE_NUMBERS).optional(),
   familyGroupId: z.string().optional(),
   displayNames: z.object({
@@ -141,8 +141,6 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
     }
   };
   
-  const watchedAvatarUrl = form.watch("avatarUrl");
-
   return (
     <>
       <Form {...form}>
@@ -150,25 +148,54 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Column 1: Avatar and Basic Info */}
             <div className="md:col-span-1 space-y-6">
-              <FormField
+               <FormField
                 control={form.control}
                 name="avatarUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Avatar URL</FormLabel>
+                    <FormLabel>Avatar</FormLabel>
+                    <div className="mt-1 mb-2 flex flex-col items-center">
+                      {field.value ? (
+                        <div className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-primary shadow-md">
+                          <Image src={field.value} alt="Avatar Preview" layout="fill" objectFit="cover" data-ai-hint="contact preview" />
+                        </div>
+                      ) : (
+                        <div className="w-32 h-32 rounded-full bg-muted flex items-center justify-center text-muted-foreground border-2 border-dashed">
+                          <UserCircle className="w-24 h-24" />
+                        </div>
+                      )}
+                      {field.value && (
+                        <Button
+                          type="button"
+                          variant="link"
+                          size="sm"
+                          className="mt-2 text-destructive hover:text-destructive/80"
+                          onClick={() => form.setValue('avatarUrl', '', { shouldValidate: true })}
+                        >
+                          Remove Image
+                        </Button>
+                      )}
+                    </div>
                     <FormControl>
-                      <Input placeholder="https://example.com/avatar.png" {...field} className="shadow-sm" />
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              form.setValue('avatarUrl', reader.result as string, { shouldValidate: true });
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="shadow-sm"
+                      />
                     </FormControl>
-                    {watchedAvatarUrl && (
-                      <div className="mt-2 relative w-32 h-32 rounded-full overflow-hidden border-2 border-primary shadow-md mx-auto">
-                        <Image src={watchedAvatarUrl} alt="Avatar Preview" layout="fill" objectFit="cover" data-ai-hint="person avatar" />
-                      </div>
-                    )}
-                     {!watchedAvatarUrl && (
-                      <div className="mt-2 w-32 h-32 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-4xl font-semibold border-2 border-dashed mx-auto">
-                        {watchName ? watchName.substring(0,2).toUpperCase() : "?? "}
-                      </div>
-                    )}
+                     <FormDescription>
+                      Upload a photo or leave empty for default icon.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -237,12 +264,12 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
                     <Select
                       onValueChange={(value) => {
                         if (value === NONE_OPTION_VALUE) {
-                          field.onChange(''); // Store empty string for "None"
+                          field.onChange(''); 
                         } else {
                           field.onChange(value);
                         }
                       }}
-                      value={(field.value === '' || typeof field.value === 'undefined') ? NONE_OPTION_VALUE : field.value}
+                       value={(field.value === '' || typeof field.value === 'undefined') ? NONE_OPTION_VALUE : field.value}
                     >
                       <FormControl>
                         <SelectTrigger className="shadow-sm">
@@ -384,3 +411,4 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
     </>
   );
 }
+
