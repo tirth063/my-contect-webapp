@@ -1,15 +1,15 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ContactCard } from '@/components/contact-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DUMMY_CONTACTS, DUMMY_FAMILY_GROUPS } from '@/lib/dummy-data';
-import type { Contact, FamilyGroup, ContactSource } from '@/types';
-import { PlusCircle, Search, LayoutGrid, ListFilter, Users, Upload } from 'lucide-react'; // Added Upload
+import type { Contact, FamilyGroup, ContactSource, LabeledAddress, DisplayName } from '@/types';
+import { PlusCircle, Search, LayoutGrid, ListFilter, Users, Upload, Download } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -36,7 +36,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 import { sourceNameMap } from '@/components/contact-source-icons';
-import { ImportContactsModal } from '@/components/import-contacts-modal'; // Added ImportContactsModal
+import { ImportContactsModal } from '@/components/import-contacts-modal';
+import { ExportContactsModal } from '@/components/export-contacts-modal'; // Added ExportContactsModal
 
 const ALL_CONTACT_SOURCES: ContactSource[] = ['gmail', 'sim', 'whatsapp', 'other', 'csv'];
 
@@ -65,7 +66,9 @@ export default function AllContactsPage() {
 
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false); // State for import modal
+  
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
 
   const [sourceCounts, setSourceCounts] = useState<Record<ContactSource, number>>({
@@ -73,15 +76,13 @@ export default function AllContactsPage() {
     sim: 0,
     whatsapp: 0,
     other: 0,
-    csv: 0, // Added csv source count
+    csv: 0,
   });
 
   useEffect(() => {
-    // Simulate fetching data
     setContacts(DUMMY_CONTACTS);
     setAllGroups([...DUMMY_FAMILY_GROUPS].sort((a,b) => a.name.localeCompare(b.name)));
     
-    // Calculate source counts
     const counts = DUMMY_CONTACTS.reduce((acc, contact) => {
       contact.sources?.forEach(source => {
         acc[source] = (acc[source] || 0) + 1;
@@ -98,16 +99,25 @@ export default function AllContactsPage() {
       if (groupExists) {
         setSelectedGroupId(groupIdFromQuery);
       } else {
-        router.replace('/'); // Remove invalid groupId from URL
+        router.replace('/'); 
         console.warn(`Group ID "${groupIdFromQuery}" from query parameter not found.`);
       }
     }
-  }, [searchParams, router]);
+
+    const action = searchParams.get('action');
+    if (action === 'import') {
+      setIsImportModalOpen(true);
+      router.replace('/', { scroll: false }); // Remove query param after opening
+    } else if (action === 'export') {
+      setIsExportModalOpen(true);
+      router.replace('/', { scroll: false }); // Remove query param after opening
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]); // Removed router from deps to avoid re-triggering on replace
 
   const filteredContacts = (() => {
     let contactsToProcess = [...contacts];
 
-    // Filter by selected group (and its descendants)
     if (selectedGroupId && selectedGroupId !== 'all') {
       const relevantGroupIds = getAllDescendantGroupIds(selectedGroupId, allGroups);
       contactsToProcess = contactsToProcess.filter(contact =>
@@ -115,14 +125,12 @@ export default function AllContactsPage() {
       );
     }
 
-    // Filter by selected sources
     if (selectedSources.length > 0) {
       contactsToProcess = contactsToProcess.filter(contact =>
         contact.sources?.some(cs => selectedSources.includes(cs))
       );
     }
 
-    // Filter by search term
     if (searchTerm.trim()) {
       contactsToProcess = contactsToProcess.filter((contact) => {
         const lowerSearchTerm = searchTerm.toLowerCase();
@@ -157,7 +165,6 @@ export default function AllContactsPage() {
       });
     }
 
-    // Sort contacts
     return contactsToProcess.sort((a, b) => {
       if (sortOrder === 'name-asc') {
         return a.name.localeCompare(b.name);
@@ -181,7 +188,6 @@ export default function AllContactsPage() {
     const updatedContacts = contacts.filter(c => c.id !== contactId);
     setContacts(updatedContacts);
 
-    // Recalculate source counts after deletion
     const counts = updatedContacts.reduce((acc, contact) => {
         contact.sources?.forEach(source => {
           acc[source] = (acc[source] || 0) + 1;
@@ -238,9 +244,8 @@ export default function AllContactsPage() {
     }));
 
     DUMMY_CONTACTS.push(...newContactsWithIds);
-    setContacts([...DUMMY_CONTACTS]); // Update main contact list
+    setContacts([...DUMMY_CONTACTS]); 
 
-    // Recalculate source counts
     const counts = DUMMY_CONTACTS.reduce((acc, contact) => {
       contact.sources?.forEach(source => {
         acc[source] = (acc[source] || 0) + 1;
@@ -254,6 +259,138 @@ export default function AllContactsPage() {
       description: `${newContactsWithIds.length} contact(s) imported from CSV.`,
       className: "bg-accent text-accent-foreground",
     });
+  };
+
+  const triggerDownload = (filename: string, content: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  };
+
+  const exportContactsAsCSV = (contactsToExport: Contact[]) => {
+    if (contactsToExport.length === 0) {
+      toast({ title: "No Contacts to Export", description: "There are no contacts matching the current filters.", variant: "default" });
+      return;
+    }
+    const MAX_ADDRESSES_EXPORT = 3; // Align with form's MAX_ADDRESSES if needed
+    const MAX_ALT_NUMBERS_EXPORT = 5; // Align with form's MAX_ALTERNATIVE_NUMBERS
+
+    const headers = [
+      'ID', 'Name', 'PhoneNumber', 'Email', 'Notes', 'AvatarURL',
+      ...Array.from({ length: MAX_ADDRESSES_EXPORT }, (_, i) => `Address${i + 1}_Label`).join(',').split(','),
+      ...Array.from({ length: MAX_ADDRESSES_EXPORT }, (_, i) => `Address${i + 1}_Street`).join(',').split(','),
+      ...Array.from({ length: MAX_ADDRESSES_EXPORT }, (_, i) => `Address${i + 1}_City`).join(',').split(','),
+      ...Array.from({ length: MAX_ADDRESSES_EXPORT }, (_, i) => `Address${i + 1}_State`).join(',').split(','),
+      ...Array.from({ length: MAX_ADDRESSES_EXPORT }, (_, i) => `Address${i + 1}_Zip`).join(',').split(','),
+      ...Array.from({ length: MAX_ADDRESSES_EXPORT }, (_, i) => `Address${i + 1}_Country`).join(',').split(','),
+      'DisplayNames_EN', 'DisplayNames_GU', 'DisplayNames_HI',
+      'GroupNames',
+      ...Array.from({ length: MAX_ALT_NUMBERS_EXPORT }, (_, i) => `AlternativeNumber${i + 1}`).join(',').split(','),
+      'Sources'
+    ];
+
+    const csvRows = contactsToExport.map(contact => {
+      const row: (string | undefined)[] = [
+        contact.id,
+        contact.name,
+        contact.phoneNumber,
+        contact.email,
+        contact.notes,
+        contact.avatarUrl,
+      ];
+
+      for (let i = 0; i < MAX_ADDRESSES_EXPORT; i++) {
+        const addr = contact.addresses?.[i];
+        row.push(addr?.label || '');
+        row.push(addr?.street || '');
+        row.push(addr?.city || '');
+        row.push(addr?.state || '');
+        row.push(addr?.zip || '');
+        row.push(addr?.country || '');
+      }
+      
+      row.push(contact.displayNames?.find(dn => dn.lang === 'en')?.name || '');
+      row.push(contact.displayNames?.find(dn => dn.lang === 'gu')?.name || '');
+      row.push(contact.displayNames?.find(dn => dn.lang === 'hi')?.name || '');
+
+      const groupNames = contact.groupIds?.map(gid => allGroups.find(g => g.id === gid)?.name).filter(Boolean).join('; ') || '';
+      row.push(groupNames);
+
+      for (let i = 0; i < MAX_ALT_NUMBERS_EXPORT; i++) {
+        row.push(contact.alternativeNumbers?.[i] || '');
+      }
+      
+      row.push(contact.sources?.join('; ') || '');
+
+      return row.map(field => `"${(field || '').replace(/"/g, '""')}"`).join(',');
+    });
+
+    const csvString = [headers.join(','), ...csvRows].join('\r\n');
+    triggerDownload('contacts.csv', csvString, 'text/csv;charset=utf-8;');
+    toast({ title: "Export Successful", description: `${contactsToExport.length} contacts exported as CSV.`, className: "bg-accent text-accent-foreground" });
+  };
+
+  const exportContactsAsTXT = (contactsToExport: Contact[]) => {
+     if (contactsToExport.length === 0) {
+      toast({ title: "No Contacts to Export", description: "There are no contacts matching the current filters.", variant: "default" });
+      return;
+    }
+    let txtContent = `ContactNexus Export - ${new Date().toLocaleString()}\n`;
+    txtContent += `Total Contacts: ${contactsToExport.length}\n\n`;
+
+    contactsToExport.forEach(contact => {
+      txtContent += `------------------------------\n`;
+      txtContent += `Name: ${contact.name || 'N/A'}\n`;
+      txtContent += `Phone Number: ${contact.phoneNumber || 'N/A'}\n`;
+      if (contact.email) txtContent += `Email: ${contact.email}\n`;
+      if (contact.notes) txtContent += `Notes: ${contact.notes}\n`;
+      if (contact.avatarUrl) txtContent += `Avatar URL: ${contact.avatarUrl}\n`;
+
+      if (contact.displayNames && contact.displayNames.length > 0) {
+        contact.displayNames.forEach(dn => {
+          txtContent += `Display Name (${dn.lang.toUpperCase()}): ${dn.name}\n`;
+        });
+      }
+      
+      const groupNames = contact.groupIds?.map(gid => allGroups.find(g => g.id === gid)?.name).filter(Boolean).join(', ');
+      if (groupNames) txtContent += `Groups: ${groupNames}\n`;
+
+      if (contact.alternativeNumbers && contact.alternativeNumbers.length > 0) {
+        txtContent += `Alternative Numbers: ${contact.alternativeNumbers.join(', ')}\n`;
+      }
+
+      if (contact.addresses && contact.addresses.length > 0) {
+        contact.addresses.forEach((addr, index) => {
+          txtContent += `Address ${index + 1}${addr.label ? ` (${addr.label})` : ''}:\n`;
+          if (addr.street) txtContent += `  Street: ${addr.street}\n`;
+          if (addr.city) txtContent += `  City: ${addr.city}\n`;
+          if (addr.state) txtContent += `  State: ${addr.state}\n`;
+          if (addr.zip) txtContent += `  Zip: ${addr.zip}\n`;
+          if (addr.country) txtContent += `  Country: ${addr.country}\n`;
+        });
+      }
+      if (contact.sources && contact.sources.length > 0) {
+        txtContent += `Sources: ${contact.sources.map(s => sourceNameMap[s] || s).join(', ')}\n`;
+      }
+      txtContent += `------------------------------\n\n`;
+    });
+    triggerDownload('contacts.txt', txtContent, 'text/plain;charset=utf-8;');
+    toast({ title: "Export Successful", description: `${contactsToExport.length} contacts exported as TXT.`, className: "bg-accent text-accent-foreground" });
+  };
+
+
+  const handleExport = (format: 'csv' | 'txt') => {
+    const contactsToExport = filteredContacts; // Export based on current filters
+    if (format === 'csv') {
+      exportContactsAsCSV(contactsToExport);
+    } else if (format === 'txt') {
+      exportContactsAsTXT(contactsToExport);
+    }
   };
 
 
@@ -275,9 +412,7 @@ export default function AllContactsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">All Contacts ({filteredContacts.length})</h1>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-           <Button onClick={() => setIsImportModalOpen(true)} variant="outline" className="shadow-sm hover:shadow-lg transition-shadow w-full sm:w-auto">
-            <Upload className="mr-2 h-5 w-5" /> Import Contacts
-          </Button>
+           {/* Buttons moved to sidebar via AppShellClient */}
            <Button onClick={openCreateGroupModal} variant="outline" className="shadow-sm hover:shadow-lg transition-shadow w-full sm:w-auto">
             <PlusCircle className="mr-2 h-5 w-5" /> Create New Group
           </Button>
@@ -395,6 +530,12 @@ export default function AllContactsPage() {
         onOpenChange={setIsImportModalOpen}
         onImport={handleImportedContacts}
         allExistingGroups={allGroups}
+      />
+      <ExportContactsModal
+        isOpen={isExportModalOpen}
+        onOpenChange={setIsExportModalOpen}
+        onExport={handleExport}
+        contactCount={filteredContacts.length}
       />
     </div>
   );

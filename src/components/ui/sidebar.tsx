@@ -514,7 +514,7 @@ const SidebarMenuItem = React.forwardRef<
 SidebarMenuItem.displayName = "SidebarMenuItem"
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 [&>svg]:size-4 [&>svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -551,6 +551,7 @@ const SidebarMenuButton = React.forwardRef<
       size = "default",
       tooltip,
       className,
+      children, // Added children to props
       ...props
     },
     ref
@@ -558,6 +559,29 @@ const SidebarMenuButton = React.forwardRef<
     const Comp = asChild ? Slot : "button"
     const { isMobile, state } = useSidebar()
 
+    // Find the icon and text children
+    let icon: React.ReactNode = null;
+    const textElements: React.ReactNode[] = [];
+    React.Children.forEach(children, child => {
+      // Assuming icon is a direct child and not wrapped, or has a specific prop/type to identify it
+      // For Lucide icons, they are functions/components. A simple check could be if it's not a string.
+      // This might need refinement based on how icons are passed.
+      if (typeof child !== 'string' && typeof child !== 'number' && !icon) {
+        icon = child;
+      } else {
+        textElements.push(child);
+      }
+    });
+
+    const buttonContent = (
+      <>
+        {icon}
+        <span className={cn("flex-grow", state === "expanded" ? "min-w-0" : "sr-only group-data-[collapsible=icon]:sr-only")}>
+          {textElements}
+        </span>
+      </>
+    );
+    
     const button = (
       <Comp
         ref={ref}
@@ -566,7 +590,9 @@ const SidebarMenuButton = React.forwardRef<
         data-active={isActive}
         className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
         {...props}
-      />
+      >
+        {buttonContent}
+      </Comp>
     )
 
     if (!tooltip) {
@@ -763,5 +789,4 @@ export {
   SidebarTrigger,
   useSidebar,
 }
-
     

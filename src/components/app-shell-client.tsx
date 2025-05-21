@@ -1,9 +1,10 @@
+
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { List, Users, UserPlus, Settings, Menu } from 'lucide-react';
+import { List, Users, UserPlus, Settings, Menu, Upload, Download } from 'lucide-react';
 import {
   SidebarProvider,
   Sidebar,
@@ -39,6 +40,8 @@ export function AppShellClient({ children }: AppShellClientProps) {
     { href: '/', label: 'All Contacts', icon: List },
     { href: '/groups', label: 'Family Groups', icon: Users },
     { href: '/contacts/add', label: 'Add Contact', icon: UserPlus },
+    { href: '/?action=import', label: 'Import Contacts', icon: Upload, queryAction: true },
+    { href: '/?action=export', label: 'Export Contacts', icon: Download, queryAction: true },
   ];
 
   return (
@@ -58,7 +61,7 @@ export function AppShellClient({ children }: AppShellClientProps) {
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === item.href}
+                  isActive={pathname === item.href && !item.queryAction} // Active state only if not a query action link
                   tooltip={{ children: item.label, side: 'right', align: 'center' }}
                 >
                   <Link href={item.href}>
