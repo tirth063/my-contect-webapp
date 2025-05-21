@@ -2,14 +2,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation'; // Added
+import { useRouter } from 'next/navigation'; 
 import { DUMMY_FAMILY_GROUPS, DUMMY_CONTACTS } from '@/lib/dummy-data';
-import type { FamilyGroup, Contact } from '@/types';
+import type { FamilyGroup, Contact, LabeledAddress } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Users, Edit2, Trash2, Search, ChevronDown, ChevronRight, Eye } from 'lucide-react';
+import { PlusCircle, Users, Edit2, Trash2, Search, ChevronDown, ChevronRight, Eye, Share2 } from 'lucide-react'; // Added Share2
 import {
   Dialog,
   DialogContent,
@@ -30,22 +30,27 @@ interface GroupWithHierarchy extends FamilyGroup {
   subGroupCount: number;
 }
 
-// Helper function to recursively count members in a group and its subgroups
+
+const getAllDescendantGroupIds = (groupId: string, allGroupsData: FamilyGroup[]): string[] => {
+  const ids: string[] = [groupId];
+  const children = allGroupsData.filter(g => g.parentId === groupId);
+  for (const child of children) {
+    ids.push(...getAllDescendantGroupIds(child.id, allGroupsData));
+  }
+  return Array.from(new Set(ids)); 
+};
+
 const getFullMemberCount = (
   groupId: string,
   allGroups: FamilyGroup[],
   allContacts: Contact[]
 ): number => {
-  let count = allContacts.filter(contact => contact.groupIds?.includes(groupId)).length;
-  const childGroups = allGroups.filter(group => group.parentId === groupId);
-  for (const child of childGroups) {
-    count += getFullMemberCount(child.id, allGroups, allContacts);
-  }
-  return count;
+  const relevantGroupIds = getAllDescendantGroupIds(groupId, allGroups);
+  return allContacts.filter(contact => contact.groupIds?.some(cgId => relevantGroupIds.includes(cgId))).length;
 };
 
 export default function FamilyGroupsPage() {
-  const router = useRouter(); // Added
+  const router = useRouter(); 
   const [groups, setGroups] = useState<FamilyGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -59,7 +64,6 @@ export default function FamilyGroupsPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Simulate fetching groups and contacts
     setGroups(DUMMY_FAMILY_GROUPS);
     setIsLoading(false);
   }, []);
@@ -72,6 +76,11 @@ export default function FamilyGroupsPage() {
 
     if (editingGroup) {
       setGroups(prevGroups => prevGroups.map(g => g.id === editingGroup.id ? { ...g, name: newGroupName, description: newGroupDescription, parentId: newGroupParentId } : g));
+      DUMMY_FAMILY_GROUPS.forEach((group, index) => {
+        if (group.id === editingGroup.id) {
+          DUMMY_FAMILY_GROUPS[index] = { ...group, name: newGroupName, description: newGroupDescription, parentId: newGroupParentId };
+        }
+      });
       toast({ title: "Group Updated", description: `Group "${newGroupName}" updated successfully.`, className: "bg-accent text-accent-foreground" });
     } else {
       const newGroupData: FamilyGroup = {
@@ -82,6 +91,7 @@ export default function FamilyGroupsPage() {
         members: [], 
       };
       setGroups(prevGroups => [...prevGroups, newGroupData]);
+      DUMMY_FAMILY_GROUPS.push(newGroupData);
       toast({ title: "Group Created", description: `Group "${newGroupName}" created successfully.`, className: "bg-accent text-accent-foreground" });
     }
     closeModal();
@@ -112,24 +122,24 @@ export default function FamilyGroupsPage() {
   };
 
   const handleDeleteGroup = (groupId: string) => {
-    setGroups(prevGroups => {
-      const groupToDelete = prevGroups.find(g => g.id === groupId);
-      if (!groupToDelete) return prevGroups;
+    const groupToDelete = groups.find(g => g.id === groupId);
+    if (!groupToDelete) return;
 
-      const childrenOfDeleted = prevGroups.filter(g => g.parentId === groupId);
-      
-      const updatedGroups = prevGroups.filter(g => g.id !== groupId);
-
-      childrenOfDeleted.forEach(child => {
-        const childIndex = updatedGroups.findIndex(g => g.id === child.id);
-        if (childIndex !== -1) {
-          updatedGroups[childIndex] = { ...updatedGroups[childIndex], parentId: groupToDelete.parentId };
-        }
-      });
-      
-      return updatedGroups;
+    const childrenOfDeleted = groups.filter(g => g.parentId === groupId);
+    
+    const updatedGlobalGroups = DUMMY_FAMILY_GROUPS.filter(g => g.id !== groupId);
+    childrenOfDeleted.forEach(child => {
+      const childIndexInGlobal = updatedGlobalGroups.findIndex(g => g.id === child.id);
+      if (childIndexInGlobal !== -1) {
+        updatedGlobalGroups[childIndexInGlobal] = { ...updatedGlobalGroups[childIndexInGlobal], parentId: groupToDelete.parentId };
+      }
     });
-    toast({ title: "Group Deleted", description: "Group deleted. Subgroups were re-parented.", variant: "default" });
+    
+    DUMMY_FAMILY_GROUPS.length = 0; // Clear original
+    DUMMY_FAMILY_GROUPS.push(...updatedGlobalGroups); // Push updated
+    setGroups(updatedGlobalGroups); // Update state
+    
+    toast({ title: "Group Deleted", description: `Group "${groupToDelete.name}" deleted. Subgroups (if any) were re-parented.`, variant: "default" });
   };
 
   const toggleExpand = (groupId: string) => {
@@ -139,6 +149,7 @@ export default function FamilyGroupsPage() {
   const buildGroupHierarchy = (allCurrentGroups: FamilyGroup[], parentId?: string, level = 0): GroupWithHierarchy[] => {
     return allCurrentGroups
       .filter(group => group.parentId === parentId)
+      .sort((a, b) => a.name.localeCompare(b.name)) // Sort groups at the same level
       .map(group => {
         const children = buildGroupHierarchy(allCurrentGroups, group.id, level + 1);
         const memberCount = getFullMemberCount(group.id, allCurrentGroups, DUMMY_CONTACTS);
@@ -175,6 +186,64 @@ export default function FamilyGroupsPage() {
 
   const handleViewContacts = (groupId: string) => {
     router.push(`/?groupId=${groupId}`);
+  };
+
+  const formatSingleAddressForShare = (address?: LabeledAddress) => {
+    if (!address) return null;
+    const parts = [address.street, address.city, address.state, address.zip, address.country].filter(Boolean);
+    return parts.join(', ');
+  };
+
+  const handleShareGroup = async (group: GroupWithHierarchy) => {
+    const relevantGroupIds = getAllDescendantGroupIds(group.id, groups);
+    const memberContacts = DUMMY_CONTACTS.filter(contact => 
+      contact.groupIds?.some(cgId => relevantGroupIds.includes(cgId))
+    );
+
+    let shareText = `Group: ${group.name}\n`;
+    if (group.description) {
+      shareText += `Description: ${group.description}\n`;
+    }
+    shareText += `Total Members (including subgroups): ${group.memberCount}\n\n--- Members ---\n`;
+
+    if (memberContacts.length > 0) {
+      memberContacts.forEach(contact => {
+        shareText += `\nName: ${contact.name}\nPhone: ${contact.phoneNumber}`;
+        if (contact.email) shareText += `\nEmail: ${contact.email}`;
+        if (contact.addresses && contact.addresses.length > 0) {
+          contact.addresses.forEach(addr => {
+            const formattedAddr = formatSingleAddressForShare(addr);
+            if (formattedAddr) {
+                shareText += `\nAddress${addr.label ? ` (${addr.label})` : ''}: ${formattedAddr}`;
+            }
+          });
+        }
+        shareText += `\n----------------\n`;
+      });
+    } else {
+      shareText += "No members in this group or its subgroups.\n";
+    }
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Group: ${group.name}`,
+          text: shareText,
+        });
+        toast({ title: "Shared", description: "Group details sent to share dialog." });
+      } catch (error) {
+        console.error('Error sharing group:', error);
+        toast({ title: "Share Failed", description: "Could not share group.", variant: "destructive" });
+      }
+    } else {
+      // Fallback: Copy to clipboard if Web Share API is not available
+      try {
+        await navigator.clipboard.writeText(shareText);
+        toast({ title: "Web Share API not available", description: "Group details copied to clipboard instead." });
+      } catch (err) {
+        toast({ title: "Copy Failed", description: "Could not copy group details.", variant: "destructive"});
+      }
+    }
   };
 
   const renderGroupItem = (group: GroupWithHierarchy) => (
@@ -240,6 +309,15 @@ export default function FamilyGroupsPage() {
                 title="View contacts in this group"
             >
                 <Eye className="h-3.5 w-3.5 sm:mr-1" /> <span className="hidden sm:inline">View</span>
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={(e) => { e.stopPropagation(); handleShareGroup(group); }}
+              className="text-xs px-1 sm:px-2"
+              title="Share group"
+            >
+              <Share2 className="h-3.5 w-3.5 sm:mr-1" /> <span className="hidden sm:inline">Share</span>
             </Button>
             <Button 
               variant="ghost" 
@@ -354,12 +432,12 @@ export default function FamilyGroupsPage() {
                     if (!editingGroup) return true; 
                     if (g.id === editingGroup.id) return false; 
                     
-                    let currentParentIdToCheck = g.id;
+                    let currentParentIdToCheck = g.parentId;
                     while(currentParentIdToCheck) {
+                      if (currentParentIdToCheck === editingGroup.id) return false; 
                       const parentGroup = groups.find(p => p.id === currentParentIdToCheck);
                       if (!parentGroup) break;
-                      if (parentGroup.id === editingGroup.id) return false; // Found editingGroup in ancestors of g
-                      currentParentIdToCheck = parentGroup.parentId;
+                       currentParentIdToCheck = parentGroup.parentId;
                     }
                     return true;
                   })

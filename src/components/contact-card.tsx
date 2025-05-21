@@ -1,16 +1,17 @@
 
 'use client';
 
-import type { Contact } from '@/types';
+import type { Contact, LabeledAddress } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Mail, Phone, Edit, Trash2, MoreVertical, MapPin, MessageCircle } from 'lucide-react'; // Added MessageCircle
+import { Mail, Phone, Edit, Trash2, MoreVertical, MapPin, MessageCircle, Share2 } from 'lucide-react'; // Added Share2
 import { ContactSourceIcons } from './contact-source-icons';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator, // Added Separator
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useLongPress } from '@/hooks/use-long-press';
@@ -43,7 +44,7 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
     .join('')
     .toUpperCase();
 
-  const formatAddress = (address?: LabeledAddress) => { // Updated to accept LabeledAddress
+  const formatSingleAddress = (address?: LabeledAddress) => {
     if (!address) return null;
     const parts = [address.street, address.city, address.state, address.zip, address.country].filter(Boolean);
     return parts.join(', ');
@@ -55,13 +56,10 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
   };
 
   const cleanPhoneNumberForWhatsApp = (phone: string) => {
-    // WhatsApp links generally prefer digits only, especially for international numbers
-    // Remove '+' and any other non-digit characters
     return phone.replace(/[^0-9]/g, '');
   };
   
   const cleanPhoneNumberForSms = (phone: string) => {
-    // SMS URI can handle '+' for country codes
     return phone.replace(/[^0-9+]/g, '');
   };
 
@@ -103,6 +101,39 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
     },
     () => {}
   );
+
+  const handleShareContact = async () => {
+    let shareText = `Contact: ${contact.name}\nPhone: ${contact.phoneNumber}`;
+    if (contact.email) {
+      shareText += `\nEmail: ${contact.email}`;
+    }
+    if (contact.addresses && contact.addresses.length > 0) {
+      contact.addresses.forEach((addr, index) => {
+        const formattedAddr = formatSingleAddress(addr);
+        if (formattedAddr) {
+          shareText += `\nAddress${addr.label ? ` (${addr.label})` : ''}: ${formattedAddr}`;
+        }
+      });
+    }
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Contact: ${contact.name}`,
+          text: shareText,
+        });
+        toast({ title: "Shared", description: "Contact details sent to share dialog." });
+      } catch (error) {
+        console.error('Error sharing:', error);
+        toast({ title: "Share Failed", description: "Could not share contact.", variant: "destructive" });
+      }
+    } else {
+      // Fallback: Copy to clipboard if Web Share API is not available
+      await copyToClipboard(shareText, "Contact Details");
+      toast({ title: "Web Share API not available", description: "Contact details copied to clipboard instead." });
+    }
+  };
+
 
   return (
     <Card 
@@ -147,7 +178,13 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {onEdit && <DropdownMenuItem onClick={() => onEdit(contact.id)}><Edit className="mr-2 h-4 w-4" /> Edit</DropdownMenuItem>}
-            {onDelete && <DropdownMenuItem onClick={() => onDelete(contact.id)} className="text-destructive focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem>}
+            <DropdownMenuItem onClick={handleShareContact}><Share2 className="mr-2 h-4 w-4" /> Share Contact</DropdownMenuItem>
+            {onDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onDelete(contact.id)} className="text-destructive focus:text-destructive focus:bg-destructive/10"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </CardHeader>
@@ -200,7 +237,7 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
           </div>
         )}
         {contact.addresses && contact.addresses.map((addr, index) => {
-          const formattedAddress = formatAddress(addr);
+          const formattedAddress = formatSingleAddress(addr);
           if (!formattedAddress) return null;
           return (
             <div key={index} className="flex items-start gap-2 text-xs text-muted-foreground mb-2">
@@ -219,8 +256,7 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
         )}
         <div className="flex justify-between items-center mt-auto pt-3">
           <ContactSourceIcons sources={contact.sources} />
-           {contact.groupIds && contact.groupIds.length > 0 && ( // Check if groupIds exist and is not empty
-            // Placeholder for group display. Actual names would require fetching/mapping.
+           {contact.groupIds && contact.groupIds.length > 0 && ( 
             <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full border border-blue-300">
               {contact.groupIds.length} Group(s)
             </span>
