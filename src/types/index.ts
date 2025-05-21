@@ -14,24 +14,31 @@ export interface Address {
   country?: string;
 }
 
+export interface LabeledAddress extends Address {
+  label?: string; // e.g., "Home", "Work", "Other"
+}
+
 export interface Contact {
   id: string;
   name: string;
   phoneNumber: string;
   email?: string;
   alternativeNumbers?: string[];
-  familyGroupId?: string;
+  groupIds?: string[]; // Changed from familyGroupId
   displayNames?: DisplayName[];
   sources?: ContactSource[];
   avatarUrl?: string;
   notes?: string;
-  address?: Address;
+  addresses?: LabeledAddress[]; // Changed from address
 }
 
 export interface FamilyGroup {
   id: string;
   name: string;
   parentId?: string; // For hierarchy
-  members?: string[]; // Array of contact IDs
+  // Members array in FamilyGroup might be less critical if contacts store their groupIds
+  // but can be kept for quick lookups if needed. For now, we'll primarily rely on contact.groupIds
+  members?: string[]; 
   description?: string;
 }
+

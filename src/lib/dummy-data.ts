@@ -7,6 +7,7 @@ export const DUMMY_FAMILY_GROUPS: FamilyGroup[] = [
   { id: 'fam3', name: 'Cousins' },
   { id: 'friends1', name: 'Close Friends' },
   { id: 'colleagues', name: 'Colleagues' },
+  { id: 'clubX', name: 'Book Club', parentId: 'friends1' },
 ];
 
 export const DUMMY_CONTACTS: Contact[] = [
@@ -16,7 +17,7 @@ export const DUMMY_CONTACTS: Contact[] = [
     phoneNumber: '123-456-7890',
     email: 'alice@example.com',
     sources: ['gmail', 'whatsapp'],
-    familyGroupId: 'fam2',
+    groupIds: ['fam2', 'friends1'], // Alice is a Sibling and a Close Friend
     avatarUrl: 'https://placehold.co/100x100.png',
     alternativeNumbers: ['111-222-3333'],
     displayNames: [
@@ -24,13 +25,24 @@ export const DUMMY_CONTACTS: Contact[] = [
       { lang: 'hi', name: 'एलिस वंडरलैंड' }
     ],
     notes: 'Met at the tech conference.',
-    address: {
-      street: '123 Main St',
-      city: 'Anysville',
-      state: 'CA',
-      zip: '90210',
-      country: 'USA',
-    }
+    addresses: [
+      {
+        label: 'Home',
+        street: '123 Main St',
+        city: 'Anysville',
+        state: 'CA',
+        zip: '90210',
+        country: 'USA',
+      },
+      {
+        label: 'Work',
+        street: '456 Business Rd',
+        city: 'Workville',
+        state: 'CA',
+        zip: '90211',
+        country: 'USA',
+      }
+    ]
   },
   {
     id: '2',
@@ -38,23 +50,25 @@ export const DUMMY_CONTACTS: Contact[] = [
     phoneNumber: '234-567-8901',
     email: 'bob@example.com',
     sources: ['sim'],
+    groupIds: ['colleagues'],
     avatarUrl: 'https://placehold.co/100x100.png',
     alternativeNumbers: [],
     notes: 'Childhood friend.',
-     address: {
+     addresses: [{
+      label: 'Main',
       street: '456 Oak Ave',
       city: 'Builderton',
       state: 'TX',
       zip: '73301',
       country: 'USA',
-    }
+    }]
   },
   {
     id: '3',
     name: 'Charlie Brown',
     phoneNumber: '345-678-9012',
     sources: ['whatsapp'],
-    familyGroupId: 'fam3',
+    groupIds: ['fam3', 'friends1', 'clubX'],
     avatarUrl: 'https://placehold.co/100x100.png',
     displayNames: [
       { lang: 'en', name: 'Chuck' },
@@ -67,13 +81,14 @@ export const DUMMY_CONTACTS: Contact[] = [
     phoneNumber: '456-789-0123',
     email: 'diana@example.com',
     sources: ['gmail'],
-    familyGroupId: 'friends1',
+    groupIds: ['friends1'],
     avatarUrl: 'https://placehold.co/100x100.png',
     notes: 'Works at the museum.',
-    address: {
+    addresses: [{
+      label: 'Island Home',
       city: 'Themyscira',
       country: 'Paradise Island'
-    }
+    }]
   },
   {
     id: '5',
@@ -85,3 +100,4 @@ export const DUMMY_CONTACTS: Contact[] = [
     notes: 'Great at landscaping.',
   },
 ];
+

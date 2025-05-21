@@ -1,15 +1,16 @@
 
 'use client';
 
+import type { ChangeEvent } from 'react'; // Added for potential future use with more complex inputs
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ContactForm, type ContactFormValues } from '@/components/contact-form';
-import { Card, CardContent, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card'; // Removed CardDescription as it wasn't used
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import type { Contact, DisplayName } from '@/types';
+import type { Contact, DisplayName, LabeledAddress } from '@/types';
 import { DUMMY_CONTACTS } from '@/lib/dummy-data'; // Simulating data fetching
 
 export default function EditContactPage() {
@@ -33,7 +34,6 @@ export default function EditContactPage() {
     setIsSubmitting(true);
     console.log('Updated contact form data for ID:', contactId, data);
 
-    // Find the index of the contact to update
     const contactIndex = DUMMY_CONTACTS.findIndex(c => c.id === contactId);
 
     if (contactIndex === -1) {
@@ -60,34 +60,39 @@ export default function EditContactPage() {
       ?.map(numObj => numObj.value)
       .filter((num): num is string => typeof num === 'string' && num.trim() !== '') || [];
 
-    // Create the updated contact object
+    // Transform addresses, ensuring empty strings become undefined for optional fields
+    const addressesArray: LabeledAddress[] = data.addresses?.map(addr => ({
+        label: addr.label || undefined,
+        street: addr.street || undefined,
+        city: addr.city || undefined,
+        state: addr.state || undefined,
+        zip: addr.zip || undefined,
+        country: addr.country || undefined,
+      })).filter(addr => 
+        addr.label || addr.street || addr.city || addr.state || addr.zip || addr.country
+      ) || [];
+
+
     const updatedContact: Contact = {
-      ...(DUMMY_CONTACTS[contactIndex]), // Preserve existing fields like ID
+      ...(DUMMY_CONTACTS[contactIndex]), 
       name: data.name,
       phoneNumber: data.phoneNumber,
-      email: data.email || undefined, // Ensure empty string becomes undefined
+      email: data.email || undefined,
       avatarUrl: data.avatarUrl || undefined,
-      familyGroupId: data.familyGroupId === '_NONE_' ? undefined : (data.familyGroupId || undefined),
       notes: data.notes || undefined,
-      address: data.address ? {
-        street: data.address.street || undefined,
-        city: data.address.city || undefined,
-        state: data.address.state || undefined,
-        zip: data.address.zip || undefined,
-        country: data.address.country || undefined,
-      } : undefined,
+      
+      groupIds: data.groupIds || [], // Handle array of group IDs
+      
+      addresses: addressesArray.length > 0 ? addressesArray : undefined,
       displayNames: displayNamesArray.length > 0 ? displayNamesArray : undefined,
       alternativeNumbers: alternativeNumbersArray.length > 0 ? alternativeNumbersArray : undefined,
       // sources are not part of the form, so they remain unchanged from the original contact
     };
 
-    // Update the contact in the DUMMY_CONTACTS array
     DUMMY_CONTACTS[contactIndex] = updatedContact;
-    
     console.log('Updated DUMMY_CONTACTS:', DUMMY_CONTACTS);
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
     
     toast({
       title: "Contact Updated",
@@ -95,7 +100,7 @@ export default function EditContactPage() {
       className: "bg-accent text-accent-foreground",
     });
     setIsSubmitting(false);
-    router.push('/'); // Redirect to home/contacts list page
+    router.push('/'); 
   };
 
   if (contact === undefined) {
@@ -139,7 +144,7 @@ export default function EditContactPage() {
       <Card className="shadow-xl">
         <CardContent className="p-6 md:p-8">
           <ContactForm 
-            initialData={contact}
+            initialData={contact} // Pass the full contact object
             onSubmit={handleSubmit} 
             isSubmitting={isSubmitting} 
           />
@@ -148,4 +153,3 @@ export default function EditContactPage() {
     </div>
   );
 }
-
