@@ -1,6 +1,6 @@
 
 import type { ContactSource } from '@/types';
-import { Mail, Smartphone, MessageSquare, Globe } from 'lucide-react';
+import { Mail, Smartphone, MessageSquare, Globe, FileText } from 'lucide-react'; // Added FileText
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ContactSourceIconsProps {
@@ -13,6 +13,7 @@ const sourceIconMap: Record<ContactSource, React.ElementType> = {
   sim: Smartphone,
   whatsapp: MessageSquare, // This is fine for display, WhatsApp specific icon is on contact card.
   other: Globe,
+  csv: FileText, // Added CSV icon
 };
 
 // Exporting sourceNameMap to be used in other components like the filter dropdown
@@ -21,6 +22,7 @@ export const sourceNameMap: Record<ContactSource, string> = {
   sim: 'SIM Card',
   whatsapp: 'WhatsApp',
   other: 'Other',
+  csv: 'CSV Import', // Added CSV display name
 };
 
 export function ContactSourceIcons({ sources, className }: ContactSourceIconsProps) {

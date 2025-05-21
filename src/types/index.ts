@@ -1,5 +1,5 @@
 
-export type ContactSource = 'gmail' | 'sim' | 'whatsapp' | 'other';
+export type ContactSource = 'gmail' | 'sim' | 'whatsapp' | 'other' | 'csv';
 
 export interface DisplayName {
   lang: 'en' | 'gu' | 'hi';

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DUMMY_CONTACTS, DUMMY_FAMILY_GROUPS } from '@/lib/dummy-data';
 import type { Contact, FamilyGroup, ContactSource } from '@/types';
-import { PlusCircle, Search, LayoutGrid, ListFilter, Users } from 'lucide-react';
+import { PlusCircle, Search, LayoutGrid, ListFilter, Users, Upload } from 'lucide-react'; // Added Upload
 import {
   Select,
   SelectContent,
@@ -35,9 +35,10 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
-import { sourceNameMap } from '@/components/contact-source-icons'; // Assuming sourceNameMap is exported
+import { sourceNameMap } from '@/components/contact-source-icons';
+import { ImportContactsModal } from '@/components/import-contacts-modal'; // Added ImportContactsModal
 
-const ALL_CONTACT_SOURCES: ContactSource[] = ['gmail', 'sim', 'whatsapp', 'other'];
+const ALL_CONTACT_SOURCES: ContactSource[] = ['gmail', 'sim', 'whatsapp', 'other', 'csv'];
 
 
 const getAllDescendantGroupIds = (groupId: string, allGroupsData: FamilyGroup[]): string[] => {
@@ -64,12 +65,15 @@ export default function AllContactsPage() {
 
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false); // State for import modal
+
 
   const [sourceCounts, setSourceCounts] = useState<Record<ContactSource, number>>({
     gmail: 0,
     sim: 0,
     whatsapp: 0,
     other: 0,
+    csv: 0, // Added csv source count
   });
 
   useEffect(() => {
@@ -83,7 +87,7 @@ export default function AllContactsPage() {
         acc[source] = (acc[source] || 0) + 1;
       });
       return acc;
-    }, {} as Record<ContactSource, number>);
+    }, { gmail: 0, sim: 0, whatsapp: 0, other: 0, csv: 0 } as Record<ContactSource, number>);
     setSourceCounts(prev => ({...prev, ...counts}));
 
     setIsLoading(false);
@@ -94,6 +98,7 @@ export default function AllContactsPage() {
       if (groupExists) {
         setSelectedGroupId(groupIdFromQuery);
       } else {
+        router.replace('/'); // Remove invalid groupId from URL
         console.warn(`Group ID "${groupIdFromQuery}" from query parameter not found.`);
       }
     }
@@ -182,7 +187,7 @@ export default function AllContactsPage() {
           acc[source] = (acc[source] || 0) + 1;
         });
         return acc;
-      }, { gmail: 0, sim: 0, whatsapp: 0, other: 0 } as Record<ContactSource, number>);
+      }, { gmail: 0, sim: 0, whatsapp: 0, other: 0, csv: 0 } as Record<ContactSource, number>);
     setSourceCounts(counts);
 
     toast({ title: "Contact Deleted", description: "The contact has been removed.", variant: "default" });
@@ -220,6 +225,37 @@ export default function AllContactsPage() {
     );
   };
 
+  const handleImportedContacts = (importedContacts: Contact[]) => {
+    if (importedContacts.length === 0) {
+      toast({ title: "No Contacts Imported", description: "The CSV file might be empty or not in the correct format." });
+      return;
+    }
+
+    const newContactsWithIds = importedContacts.map(contact => ({
+      ...contact,
+      id: `contact-${Date.now()}-${Math.random().toString(36).substring(2,9)}`,
+      sources: contact.sources || ['csv'] as ContactSource[],
+    }));
+
+    DUMMY_CONTACTS.push(...newContactsWithIds);
+    setContacts([...DUMMY_CONTACTS]); // Update main contact list
+
+    // Recalculate source counts
+    const counts = DUMMY_CONTACTS.reduce((acc, contact) => {
+      contact.sources?.forEach(source => {
+        acc[source] = (acc[source] || 0) + 1;
+      });
+      return acc;
+    }, { gmail: 0, sim: 0, whatsapp: 0, other: 0, csv: 0 } as Record<ContactSource, number>);
+    setSourceCounts(counts);
+    
+    toast({
+      title: "Import Successful",
+      description: `${newContactsWithIds.length} contact(s) imported from CSV.`,
+      className: "bg-accent text-accent-foreground",
+    });
+  };
+
 
   if (isLoading) {
     return (
@@ -239,6 +275,9 @@ export default function AllContactsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">All Contacts ({filteredContacts.length})</h1>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+           <Button onClick={() => setIsImportModalOpen(true)} variant="outline" className="shadow-sm hover:shadow-lg transition-shadow w-full sm:w-auto">
+            <Upload className="mr-2 h-5 w-5" /> Import Contacts
+          </Button>
            <Button onClick={openCreateGroupModal} variant="outline" className="shadow-sm hover:shadow-lg transition-shadow w-full sm:w-auto">
             <PlusCircle className="mr-2 h-5 w-5" /> Create New Group
           </Button>
@@ -350,6 +389,13 @@ export default function AllContactsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ImportContactsModal
+        isOpen={isImportModalOpen}
+        onOpenChange={setIsImportModalOpen}
+        onImport={handleImportedContacts}
+        allExistingGroups={allGroups}
+      />
     </div>
   );
 }
