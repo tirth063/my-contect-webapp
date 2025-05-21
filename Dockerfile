@@ -1,19 +1,21 @@
-# Stage 1: Build the application
-FROM node:20-alpine AS builder
+# Stage 1: Build the application with legacy dependency support
+FROM node:16-alpine AS builder
+
 WORKDIR /app
 
-# Install dependencies
+# Install legacy compatible dependencies
 COPY package*.json ./
-RUN npm install
+RUN npm config set legacy-peer-deps true
+RUN npm install --no-audit --no-fund --loglevel=error
 
 # Copy all source files
 COPY . .
 
-# Build the Next.js application
-RUN npm run build
+# Build the Next.js application with legacy settings
+RUN NODE_OPTIONS=--max_old_space_size=4096 npm run build
 
 # Stage 2: Production environment
-FROM node:20-alpine AS runner
+FROM node:16-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV production
