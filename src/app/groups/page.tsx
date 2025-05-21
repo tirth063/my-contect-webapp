@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Users, Edit2, Trash2, Search, ChevronDown, ChevronRight, Eye, Share2 } from 'lucide-react'; // Added Share2
+import { PlusCircle, Users, Edit2, Trash2, Search, ChevronDown, ChevronRight, Eye, Share2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -194,6 +194,24 @@ export default function FamilyGroupsPage() {
     return parts.join(', ');
   };
 
+  const copyToClipboard = async (text: string, type: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: `${type} Copied`,
+        description: `Details for "${type}" copied to clipboard.`,
+        className: "bg-accent text-accent-foreground",
+      });
+    } catch (err) {
+      toast({
+        title: `Failed to Copy ${type}`,
+        description: "Could not copy to clipboard.",
+        variant: "destructive",
+      });
+    }
+  };
+
+
   const handleShareGroup = async (group: GroupWithHierarchy) => {
     const relevantGroupIds = getAllDescendantGroupIds(group.id, groups);
     const memberContacts = DUMMY_CONTACTS.filter(contact => 
@@ -231,18 +249,18 @@ export default function FamilyGroupsPage() {
           text: shareText,
         });
         toast({ title: "Shared", description: "Group details sent to share dialog." });
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error sharing group:', error);
-        toast({ title: "Share Failed", description: "Could not share group.", variant: "destructive" });
+         if (error.name === 'AbortError') {
+             toast({ title: "Share Canceled", description: "Sharing was canceled by the user.", variant: "default" });
+        } else {
+            toast({ title: "Share Failed", description: "Could not share group. Trying to copy instead...", variant: "default" });
+            await copyToClipboard(shareText, `Group: ${group.name}`);
+        }
       }
     } else {
-      // Fallback: Copy to clipboard if Web Share API is not available
-      try {
-        await navigator.clipboard.writeText(shareText);
-        toast({ title: "Web Share API not available", description: "Group details copied to clipboard instead." });
-      } catch (err) {
-        toast({ title: "Copy Failed", description: "Could not copy group details.", variant: "destructive"});
-      }
+      toast({ title: "Web Share API not available", description: "Group details copied to clipboard instead.", variant: "default"});
+      await copyToClipboard(shareText, `Group: ${group.name}`);
     }
   };
 
@@ -253,7 +271,13 @@ export default function FamilyGroupsPage() {
       >
         <CardContent 
           className="p-3 flex items-center justify-between gap-2 cursor-pointer"
-          onClick={() => handleViewContacts(group.id)}
+          onClick={(e) => { 
+            // Prevent navigation if the click is on an interactive element like a button
+            if ((e.target as HTMLElement).closest('button')) {
+              return;
+            }
+            handleViewContacts(group.id); 
+          }}
         >
           <div className="flex items-center flex-grow min-w-0">
             {group.children && group.children.length > 0 ? (

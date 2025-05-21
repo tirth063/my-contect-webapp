@@ -5,13 +5,13 @@ import type { Contact, LabeledAddress } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Mail, Phone, Edit, Trash2, MoreVertical, MapPin, MessageCircle, Share2 } from 'lucide-react'; // Added Share2
+import { Mail, Phone, Edit, Trash2, MoreVertical, MapPin, MessageCircle, Share2 } from 'lucide-react';
 import { ContactSourceIcons } from './contact-source-icons';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator, // Added Separator
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useLongPress } from '@/hooks/use-long-press';
@@ -123,14 +123,20 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
           text: shareText,
         });
         toast({ title: "Shared", description: "Contact details sent to share dialog." });
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error sharing:', error);
-        toast({ title: "Share Failed", description: "Could not share contact.", variant: "destructive" });
+        // If sharing fails (e.g. permission denied or user cancellation), try copying to clipboard.
+        if (error.name === 'AbortError') {
+             toast({ title: "Share Canceled", description: "Sharing was canceled by the user.", variant: "default" });
+        } else {
+            toast({ title: "Share Failed", description: "Could not share contact. Trying to copy instead...", variant: "default" });
+            await copyToClipboard(shareText, "Contact Details");
+        }
       }
     } else {
       // Fallback: Copy to clipboard if Web Share API is not available
+      toast({ title: "Web Share API not available", description: "Contact details copied to clipboard instead.", variant: "default" });
       await copyToClipboard(shareText, "Contact Details");
-      toast({ title: "Web Share API not available", description: "Contact details copied to clipboard instead." });
     }
   };
 
@@ -208,7 +214,7 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
             title="Open in WhatsApp"
             onClick={(e) => e.stopPropagation()}
           >
-            <WhatsAppIcon className="h-4 w-4 shrink-0" />
+            <WhatsAppIcon className="h-5 w-5 shrink-0" />
           </a>
           <a
             href={`sms:${cleanPhoneNumberForSms(contact.phoneNumber)}`}
