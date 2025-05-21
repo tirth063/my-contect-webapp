@@ -3,13 +3,13 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation'; // Added useSearchParams
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ContactCard } from '@/components/contact-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DUMMY_CONTACTS, DUMMY_FAMILY_GROUPS } from '@/lib/dummy-data';
 import type { Contact, FamilyGroup } from '@/types';
-import { PlusCircle, Search, LayoutGrid, ListFilter, Users } from 'lucide-react'; 
+import { PlusCircle, Search, LayoutGrid, ListFilter, Users } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -25,6 +25,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { useToast } from "@/hooks/use-toast";
 
 const getAllDescendantGroupIds = (groupId: string, allGroupsData: FamilyGroup[]): string[] => {
   const ids: string[] = [groupId];
@@ -32,18 +42,24 @@ const getAllDescendantGroupIds = (groupId: string, allGroupsData: FamilyGroup[])
   for (const child of children) {
     ids.push(...getAllDescendantGroupIds(child.id, allGroupsData));
   }
-  return Array.from(new Set(ids)); 
+  return Array.from(new Set(ids));
 };
 
 export default function AllContactsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams(); // Added
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
+
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [allGroups, setAllGroups] = useState<FamilyGroup[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [sortOrder, setSortOrder] = useState('name-asc');
   const [selectedGroupId, setSelectedGroupId] = useState<string | undefined>(undefined);
+
+  const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+
 
   useEffect(() => {
     setContacts(DUMMY_CONTACTS);
@@ -57,11 +73,10 @@ export default function AllContactsPage() {
         setSelectedGroupId(groupIdFromQuery);
       } else {
         console.warn(`Group ID "${groupIdFromQuery}" from query parameter not found.`);
-        // Optionally clear the invalid query param, though not strictly necessary
-        // router.replace('/', { scroll: false }); 
+        // router.replace('/', { scroll: false });
       }
     }
-  }, [searchParams, router]); // Added searchParams and router to dependencies
+  }, [searchParams, router]);
 
   const filteredContacts = (() => {
     let contactsToProcess = [...contacts];
@@ -77,14 +92,14 @@ export default function AllContactsPage() {
       contactsToProcess = contactsToProcess.filter((contact) => {
         const lowerSearchTerm = searchTerm.toLowerCase();
         const searchIn = (value?: string) => value?.toLowerCase().includes(lowerSearchTerm) ?? false;
-        
+
         let matchesSearch = (
           searchIn(contact.name) ||
           searchIn(contact.phoneNumber) ||
           (contact.alternativeNumbers && contact.alternativeNumbers.some(num => searchIn(num))) ||
           searchIn(contact.email) ||
           searchIn(contact.notes) ||
-          (contact.addresses && contact.addresses.some(addr => 
+          (contact.addresses && contact.addresses.some(addr =>
             searchIn(addr.street) ||
             searchIn(addr.city) ||
             searchIn(addr.state) ||
@@ -124,14 +139,41 @@ export default function AllContactsPage() {
 
   const handleDelete = (contactId: string) => {
     console.log('Delete contact:', contactId);
-    // This is a mock delete. For a real app, you'd call an API.
-    // Update DUMMY_CONTACTS for optimistic UI update.
     const contactIndex = DUMMY_CONTACTS.findIndex(c => c.id === contactId);
     if (contactIndex > -1) {
       DUMMY_CONTACTS.splice(contactIndex, 1);
     }
     setContacts(prevContacts => prevContacts.filter(c => c.id !== contactId));
+    toast({ title: "Contact Deleted", description: "The contact has been removed.", variant: "default" });
   };
+
+  const handleCreateGroup = () => {
+    if (!newGroupName.trim()) {
+      toast({ title: "Group Name Required", description: "Please enter a name for the new group.", variant: "destructive" });
+      return;
+    }
+    const newGroupData: FamilyGroup = {
+      id: `group-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      name: newGroupName.trim(),
+      members: [], // New groups start with no members
+    };
+
+    // Update DUMMY_FAMILY_GROUPS (our mock "database")
+    DUMMY_FAMILY_GROUPS.push(newGroupData);
+
+    // Update local state for immediate UI reflection in dropdown
+    setAllGroups(prev => [...prev, newGroupData]);
+
+    toast({ title: "Group Created", description: `Group "${newGroupData.name}" created successfully.`, className: "bg-accent text-accent-foreground" });
+    closeCreateGroupModal();
+  };
+
+  const openCreateGroupModal = () => setIsCreateGroupModalOpen(true);
+  const closeCreateGroupModal = () => {
+    setIsCreateGroupModalOpen(false);
+    setNewGroupName('');
+  };
+
 
   if (isLoading) {
     return (
@@ -148,13 +190,18 @@ export default function AllContactsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">All Contacts ({filteredContacts.length})</h1>
-        <Button asChild className="shadow-md hover:shadow-lg transition-shadow">
-          <Link href="/contacts/add">
-            <PlusCircle className="mr-2 h-5 w-5" /> Add New Contact
-          </Link>
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+           <Button onClick={openCreateGroupModal} variant="outline" className="shadow-sm hover:shadow-lg transition-shadow w-full sm:w-auto">
+            <PlusCircle className="mr-2 h-5 w-5" /> Create New Group
+          </Button>
+          <Button asChild className="shadow-md hover:shadow-lg transition-shadow w-full sm:w-auto">
+            <Link href="/contacts/add">
+              <PlusCircle className="mr-2 h-5 w-5" /> Add New Contact
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-card rounded-lg shadow">
@@ -185,7 +232,7 @@ export default function AllContactsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Groups</SelectItem>
-              {allGroups.map(group => (
+              {allGroups.sort((a,b) => a.name.localeCompare(b.name)).map(group => (
                 <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
               ))}
             </SelectContent>
@@ -222,6 +269,34 @@ export default function AllContactsPage() {
           </p>
         </div>
       )}
+
+      {/* Create Group Modal */}
+      <Dialog open={isCreateGroupModalOpen} onOpenChange={closeCreateGroupModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Group</DialogTitle>
+            <DialogDescription>
+              Enter a name for your new group. You can manage subgroups and descriptions on the main Groups page.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="newGroupName">Group Name</Label>
+              <Input
+                id="newGroupName"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="e.g., College Friends"
+                className="shadow-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeCreateGroupModal} className="shadow-md">Cancel</Button>
+            <Button onClick={handleCreateGroup} className="shadow-md hover:shadow-lg transition-shadow">Create Group</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
