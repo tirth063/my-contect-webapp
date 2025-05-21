@@ -1,3 +1,4 @@
+
 import type { Contact, FamilyGroup } from '@/types';
 
 export const DUMMY_FAMILY_GROUPS: FamilyGroup[] = [
@@ -5,6 +6,7 @@ export const DUMMY_FAMILY_GROUPS: FamilyGroup[] = [
   { id: 'fam2', name: 'Siblings', parentId: 'fam1' },
   { id: 'fam3', name: 'Cousins' },
   { id: 'friends1', name: 'Close Friends' },
+  { id: 'colleagues', name: 'Colleagues' },
 ];
 
 export const DUMMY_CONTACTS: Contact[] = [
@@ -22,6 +24,13 @@ export const DUMMY_CONTACTS: Contact[] = [
       { lang: 'hi', name: 'एलिस वंडरलैंड' }
     ],
     notes: 'Met at the tech conference.',
+    address: {
+      street: '123 Main St',
+      city: 'Anysville',
+      state: 'CA',
+      zip: '90210',
+      country: 'USA',
+    }
   },
   {
     id: '2',
@@ -32,6 +41,13 @@ export const DUMMY_CONTACTS: Contact[] = [
     avatarUrl: 'https://placehold.co/100x100.png',
     alternativeNumbers: [],
     notes: 'Childhood friend.',
+     address: {
+      street: '456 Oak Ave',
+      city: 'Builderton',
+      state: 'TX',
+      zip: '73301',
+      country: 'USA',
+    }
   },
   {
     id: '3',
@@ -54,6 +70,10 @@ export const DUMMY_CONTACTS: Contact[] = [
     familyGroupId: 'friends1',
     avatarUrl: 'https://placehold.co/100x100.png',
     notes: 'Works at the museum.',
+    address: {
+      city: 'Themyscira',
+      country: 'Paradise Island'
+    }
   },
   {
     id: '5',

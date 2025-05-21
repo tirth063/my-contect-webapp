@@ -25,20 +25,20 @@ import {
 } from '@/components/ui/select';
 import { DUMMY_FAMILY_GROUPS, DUMMY_CONTACTS } from '@/lib/dummy-data';
 import type { Contact, FamilyGroup } from '@/types';
-import { PlusCircle, Trash2, Sparkles, UserCircle } from 'lucide-react'; // Added UserCircle
+import { PlusCircle, Trash2, Sparkles, UserCircle, MapPin } from 'lucide-react';
 import { SmartSuggestionModal } from './smart-suggestion-modal';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 
 const MAX_ALTERNATIVE_NUMBERS = 5;
-const NONE_OPTION_VALUE = "_NONE_";
+const NONE_OPTION_VALUE = "_NONE_"; // Unique value for "None" option
 
 const contactFormSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   phoneNumber: z.string().min(10, { message: 'Phone number must be at least 10 digits.' }),
   email: z.string().email({ message: 'Invalid email address.' }).optional().or(z.literal('')),
-  avatarUrl: z.string().optional(), // Changed to allow Data URLs
+  avatarUrl: z.string().optional(),
   alternativeNumbers: z.array(z.object({ value: z.string().min(10, { message: 'Phone number must be at least 10 digits.'}).optional().or(z.literal('')) })).max(MAX_ALTERNATIVE_NUMBERS).optional(),
   familyGroupId: z.string().optional(),
   displayNames: z.object({
@@ -47,6 +47,13 @@ const contactFormSchema = z.object({
     hi: z.string().optional(),
   }).optional(),
   notes: z.string().optional(),
+  address: z.object({
+    street: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    zip: z.string().optional().refine(val => !val || /^\d{5}(-\d{4})?$/.test(val), { message: "Invalid ZIP code format." }),
+    country: z.string().optional(),
+  }).optional(),
 });
 
 export type ContactFormValues = z.infer<typeof contactFormSchema>;
@@ -81,13 +88,20 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
       email: initialData?.email || '',
       avatarUrl: initialData?.avatarUrl || '',
       alternativeNumbers: initialData?.alternativeNumbers?.map(num => ({ value: num })) || [{ value: '' }],
-      familyGroupId: initialData?.familyGroupId || '',
+      familyGroupId: initialData?.familyGroupId || '', // No NONE_OPTION_VALUE here
       displayNames: {
         en: initialData?.displayNames?.find(dn => dn.lang === 'en')?.name || '',
         gu: initialData?.displayNames?.find(dn => dn.lang === 'gu')?.name || '',
         hi: initialData?.displayNames?.find(dn => dn.lang === 'hi')?.name || '',
       },
       notes: initialData?.notes || '',
+      address: initialData?.address || {
+        street: '',
+        city: '',
+        state: '',
+        zip: '',
+        country: '',
+      },
     },
   });
 
@@ -100,7 +114,12 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
 
   const handleFormSubmit = async (data: ContactFormValues) => {
     try {
-      await onSubmit(data);
+      // Ensure familyGroupId is an empty string if NONE_OPTION_VALUE was selected
+      const finalData = {
+        ...data,
+        familyGroupId: data.familyGroupId === NONE_OPTION_VALUE ? '' : data.familyGroupId,
+      };
+      await onSubmit(finalData);
     } catch (error) {
       toast({
         title: "Error",
@@ -145,7 +164,7 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
     <>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
             {/* Column 1: Avatar and Basic Info */}
             <div className="md:col-span-1 space-y-6">
                <FormField
@@ -241,7 +260,7 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
               />
             </div>
 
-            {/* Column 2: Additional Info */}
+            {/* Column 2: Additional Info & Address Part 1 */}
             <div className="md:col-span-1 space-y-6">
               <FormField
                 control={form.control}
@@ -262,14 +281,8 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
                       </Button>
                     </div>
                     <Select
-                      onValueChange={(value) => {
-                        if (value === NONE_OPTION_VALUE) {
-                          field.onChange(''); 
-                        } else {
-                          field.onChange(value);
-                        }
-                      }}
-                       value={(field.value === '' || typeof field.value === 'undefined') ? NONE_OPTION_VALUE : field.value}
+                      onValueChange={field.onChange} // RHF handles this
+                      value={field.value || NONE_OPTION_VALUE} // Ensure NONE_OPTION_VALUE for empty/undefined
                     >
                       <FormControl>
                         <SelectTrigger className="shadow-sm">
@@ -311,6 +324,7 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
+                         <FormMessage />
                       </FormItem>
                     )}
                   />
@@ -341,11 +355,82 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
                   </FormItem>
                 )}
               />
+
+              <h3 className="text-md font-medium text-foreground pt-2 border-t">
+                <MapPin className="inline-block mr-2 h-5 w-5 text-primary" />
+                Address (Optional)
+              </h3>
+               <FormField
+                control={form.control}
+                name="address.street"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Street</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., 123 Main St" {...field} className="shadow-sm" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="address.city"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>City</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Anytown" {...field} className="shadow-sm" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
-            {/* Column 3: Display Names */}
+            {/* Column 3: Display Names & Address Part 2 */}
             <div className="md:col-span-1 space-y-6">
-              <h3 className="text-md font-medium text-foreground">Alternative Display Names (Optional)</h3>
+               <FormField
+                control={form.control}
+                name="address.state"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>State / Province</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., CA" {...field} className="shadow-sm" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="address.zip"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>ZIP / Postal Code</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., 90210" {...field} className="shadow-sm" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="address.country"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Country</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., USA" {...field} className="shadow-sm" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <h3 className="text-md font-medium text-foreground pt-4 border-t">Alternative Display Names (Optional)</h3>
               <FormField
                 control={form.control}
                 name="displayNames.en"
@@ -411,4 +496,3 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
     </>
   );
 }
-

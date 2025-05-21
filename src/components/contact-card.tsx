@@ -1,9 +1,10 @@
+
 import type { Contact } from '@/types';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Mail, Phone, Edit, Trash2, MoreVertical } from 'lucide-react';
+import { Mail, Phone, Edit, Trash2, MoreVertical, MapPin } from 'lucide-react';
 import { ContactSourceIcons } from './contact-source-icons';
 import {
   DropdownMenu,
@@ -25,8 +26,16 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
     .join('')
     .toUpperCase();
 
+  const formatAddress = (address: Contact['address']) => {
+    if (!address) return null;
+    const parts = [address.street, address.city, address.state, address.zip, address.country].filter(Boolean);
+    return parts.join(', ');
+  };
+
+  const displayAddress = formatAddress(contact.address);
+
   return (
-    <Card className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300">
+    <Card className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
       <CardHeader className="flex flex-row items-start justify-between gap-4 p-4">
         <div className="flex items-center gap-4">
           <Avatar className="h-12 w-12">
@@ -57,25 +66,32 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </CardHeader>
-      <CardContent className="p-4 pt-0">
+      <CardContent className="p-4 pt-0 flex-grow">
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
           <Phone className="h-4 w-4" />
           <span>{contact.phoneNumber}</span>
         </div>
         {contact.alternativeNumbers && contact.alternativeNumbers.length > 0 && (
           <div className="text-xs text-muted-foreground mb-2">
-            Other numbers: {contact.alternativeNumbers.join(', ')}
+            Other: {contact.alternativeNumbers.join(', ')}
+          </div>
+        )}
+        {displayAddress && (
+          <div className="flex items-start gap-2 text-xs text-muted-foreground mb-2">
+            <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>{displayAddress}</span>
           </div>
         )}
          {contact.notes && (
-          <p className="text-xs text-muted-foreground italic border-l-2 border-primary pl-2 py-1 my-2 bg-secondary/30 rounded-r-sm">
+          <p className="text-xs text-muted-foreground italic border-l-2 border-primary pl-2 py-1 my-2 bg-secondary/30 rounded-r-sm break-words">
             {contact.notes}
           </p>
         )}
-        <div className="flex justify-between items-center mt-3">
+        <div className="flex justify-between items-center mt-auto pt-3">
           <ContactSourceIcons sources={contact.sources} />
            {contact.familyGroupId && (
             <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full border border-blue-300">
+              {/* TODO: Display group name instead of ID if possible, requires fetching group by ID */}
               Group ID: {contact.familyGroupId}
             </span>
           )}

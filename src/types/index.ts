@@ -6,6 +6,14 @@ export interface DisplayName {
   name: string;
 }
 
+export interface Address {
+  street?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
+}
+
 export interface Contact {
   id: string;
   name: string;
@@ -17,6 +25,7 @@ export interface Contact {
   sources?: ContactSource[];
   avatarUrl?: string;
   notes?: string;
+  address?: Address;
 }
 
 export interface FamilyGroup {
