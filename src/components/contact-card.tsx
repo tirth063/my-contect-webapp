@@ -5,7 +5,7 @@ import type { Contact } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Mail, Phone, Edit, Trash2, MoreVertical, MapPin, MessageSquare } from 'lucide-react';
+import { Mail, Phone, Edit, Trash2, MoreVertical, MapPin, MessageCircle } from 'lucide-react'; // Added MessageCircle
 import { ContactSourceIcons } from './contact-source-icons';
 import {
   DropdownMenu,
@@ -24,6 +24,14 @@ interface ContactCardProps {
   onDelete?: (contactId: string) => void;
 }
 
+// WhatsApp SVG Icon Component
+const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+    <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.35 3.43 16.84L2.05 22L7.31 20.62C8.75 21.39 10.35 21.82 12.04 21.82H12.05C17.5 21.82 21.95 17.37 21.95 11.91C21.95 6.45 17.5 2 12.04 2M12.05 3.67C16.57 3.67 20.28 7.38 20.28 11.91C20.28 16.44 16.57 20.15 12.05 20.15H12.04C10.56 20.15 9.14 19.78 7.91 19.11L7.54 18.91L4.35 19.75L5.21 16.64L4.97 16.24C4.21 14.93 3.8 13.45 3.8 11.91C3.8 7.38 7.51 3.67 12.05 3.67M17.36 14.45C17.13 14.91 16.22 15.42 15.68 15.54C15.14 15.66 14.47 15.72 14.13 15.57C13.8 15.42 13.05 15.15 12.12 14.28C10.96 13.21 10.25 11.91 10.06 11.61C9.87 11.31 10.11 11.13 10.29 10.95C10.45 10.79 10.63 10.56 10.8 10.37C10.97 10.18 11.03 10.06 11.18 9.81C11.33 9.56 11.27 9.34 11.18 9.18C11.09 9.02 10.56 7.77 10.33 7.3C10.1 6.83 9.87 6.92 9.71 6.91H9.7C9.53 6.91 9.24 6.91 8.97 7.17C8.7 7.43 8.21 7.86 8.21 8.83C8.21 9.8 9 10.71 9.12 10.89C9.24 11.07 10.53 13.17 12.57 14.02C14.22 14.72 14.62 14.58 15.05 14.54C15.49 14.5 16.28 13.97 16.49 13.53C16.7 13.09 16.7 12.73 16.61 12.58C16.52 12.43 16.31 12.34 16.08 12.22C15.85 12.1 15.17 11.76 14.95 11.67C14.73 11.58 14.58 11.52 14.43 11.76C14.28 12.01 13.97 12.37 13.85 12.52C13.73 12.67 13.61 12.7 13.43 12.61C13.25 12.52 12.61 12.31 11.86 11.64C11.25 11.1 10.83 10.42 10.69 10.18C10.55 9.94 10.67 9.81 10.83 9.67C10.96 9.54 11.12 9.37 11.26 9.22C11.41 9.07 11.49 8.92 11.59 8.77C11.7 8.61 11.64 8.41 11.59 8.29C11.53 8.17 10.92 6.77 10.69 6.31C10.47 5.85 10.24 5.91 10.13 5.9C10.02 5.89 9.87 5.89 9.71 5.89Z" />
+  </svg>
+);
+
+
 export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
   const isMobile = useIsMobile();
   const { toast } = useToast();
@@ -35,21 +43,28 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
     .join('')
     .toUpperCase();
 
-  const formatAddress = (address: Contact['address']) => {
+  const formatAddress = (address?: LabeledAddress) => { // Updated to accept LabeledAddress
     if (!address) return null;
     const parts = [address.street, address.city, address.state, address.zip, address.country].filter(Boolean);
     return parts.join(', ');
   };
 
-  const displayAddress = formatAddress(contact.address);
 
   const cleanPhoneNumberForTel = (phone: string) => {
     return phone.replace(/[^0-9+\-]/g, '');
   };
 
   const cleanPhoneNumberForWhatsApp = (phone: string) => {
-    return phone.replace(/[^0-9]/g, ''); // WhatsApp links usually prefer digits only
+    // WhatsApp links generally prefer digits only, especially for international numbers
+    // Remove '+' and any other non-digit characters
+    return phone.replace(/[^0-9]/g, '');
   };
+  
+  const cleanPhoneNumberForSms = (phone: string) => {
+    // SMS URI can handle '+' for country codes
+    return phone.replace(/[^0-9+]/g, '');
+  };
+
 
   const copyToClipboard = async (text: string, type: string) => {
     try {
@@ -70,15 +85,12 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
 
   const nameLongPressProps = useLongPress(
     () => { if (isMobile) copyToClipboard(contact.name, "Name"); },
-    () => {} // No click action for name title itself
+    () => {} 
   );
 
   const phoneLongPressProps = useLongPress(
     () => { if (isMobile) copyToClipboard(contact.phoneNumber, "Phone Number"); },
     (e) => { 
-      // Default click behavior for phone (tel link)
-      // We stop propagation if it's a click, to allow the link to work
-      // without triggering card-level events if any.
       e.stopPropagation();
     }
   );
@@ -86,12 +98,10 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
   const cardLongPressProps = useLongPress(
     () => {
       if (isMobile && dropdownTriggerRef.current) {
-        dropdownTriggerRef.current.click(); // Programmatically click the hidden trigger
+        dropdownTriggerRef.current.click(); 
       }
     },
-    () => {
-      // Default card click action if any (currently none specific)
-    }
+    () => {}
   );
 
   return (
@@ -149,7 +159,7 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
             className="hover:text-primary hover:underline truncate"
             onClick={(e) => e.stopPropagation()}
             {...(isMobile ? phoneLongPressProps : {})}
-            title={contact.phoneNumber}
+            title={`Call ${contact.phoneNumber}`}
           >
             <span className="truncate">{contact.phoneNumber}</span>
           </a>
@@ -161,31 +171,47 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
             title="Open in WhatsApp"
             onClick={(e) => e.stopPropagation()}
           >
-            <MessageSquare className="h-4 w-4 shrink-0" />
+            <WhatsAppIcon className="h-4 w-4 shrink-0" />
+          </a>
+          <a
+            href={`sms:${cleanPhoneNumberForSms(contact.phoneNumber)}`}
+            className="text-muted-foreground hover:text-primary"
+            title="Send SMS/Message"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MessageCircle className="h-4 w-4 shrink-0" />
           </a>
         </div>
         {contact.alternativeNumbers && contact.alternativeNumbers.length > 0 && (
-          <div className="text-xs text-muted-foreground mb-2 ml-6"> {/* Indent alternative numbers slightly */}
+          <div className="text-xs text-muted-foreground mb-2 ml-6">
             Other: {contact.alternativeNumbers.map((num, idx) => (
               <span key={idx}>
                 <a 
                   href={`tel:${cleanPhoneNumberForTel(num)}`}
                   className="hover:text-primary hover:underline"
                   onClick={(e) => e.stopPropagation()}
+                  title={`Call ${num}`}
                 >
                   {num}
                 </a>
-                {idx < contact.alternativeNumbers!.length - 1 ? ', ' : ''}
+                {idx < contact.alternativeNumbers.length - 1 ? ', ' : ''}
               </span>
             ))}
           </div>
         )}
-        {displayAddress && (
-          <div className="flex items-start gap-2 text-xs text-muted-foreground mb-2">
-            <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            <span className="break-words">{displayAddress}</span>
-          </div>
-        )}
+        {contact.addresses && contact.addresses.map((addr, index) => {
+          const formattedAddress = formatAddress(addr);
+          if (!formattedAddress) return null;
+          return (
+            <div key={index} className="flex items-start gap-2 text-xs text-muted-foreground mb-2">
+              <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <div className="break-words">
+                {addr.label && <span className="font-medium">{addr.label}: </span>}
+                {formattedAddress}
+              </div>
+            </div>
+          );
+        })}
          {contact.notes && (
           <p className="text-xs text-muted-foreground italic border-l-2 border-primary pl-2 py-1 my-2 bg-secondary/30 rounded-r-sm break-words">
             {contact.notes}
@@ -193,10 +219,10 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
         )}
         <div className="flex justify-between items-center mt-auto pt-3">
           <ContactSourceIcons sources={contact.sources} />
-           {contact.familyGroupId && (
+           {contact.groupIds && contact.groupIds.length > 0 && ( // Check if groupIds exist and is not empty
+            // Placeholder for group display. Actual names would require fetching/mapping.
             <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full border border-blue-300">
-              {/* TODO: Display group name instead of ID if possible, requires fetching group by ID */}
-              Group ID: {contact.familyGroupId}
+              {contact.groupIds.length} Group(s)
             </span>
           )}
         </div>
@@ -204,4 +230,3 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
     </Card>
   );
 }
-
