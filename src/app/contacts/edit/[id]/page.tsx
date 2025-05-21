@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import type { Contact } from '@/types';
+import type { Contact, DisplayName } from '@/types';
 import { DUMMY_CONTACTS } from '@/lib/dummy-data'; // Simulating data fetching
 
 export default function EditContactPage() {
@@ -31,13 +31,64 @@ export default function EditContactPage() {
 
   const handleSubmit = async (data: ContactFormValues) => {
     setIsSubmitting(true);
-    console.log('Updated contact data for ID:', contactId, data);
+    console.log('Updated contact form data for ID:', contactId, data);
+
+    // Find the index of the contact to update
+    const contactIndex = DUMMY_CONTACTS.findIndex(c => c.id === contactId);
+
+    if (contactIndex === -1) {
+      toast({
+        title: "Error",
+        description: "Contact not found for update.",
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+      router.push('/');
+      return;
+    }
+
+    // Transform displayNames from form object to array of DisplayName objects
+    const displayNamesArray: DisplayName[] = [];
+    if (data.displayNames) {
+      if (data.displayNames.en) displayNamesArray.push({ lang: 'en', name: data.displayNames.en });
+      if (data.displayNames.gu) displayNamesArray.push({ lang: 'gu', name: data.displayNames.gu });
+      if (data.displayNames.hi) displayNamesArray.push({ lang: 'hi', name: data.displayNames.hi });
+    }
+
+    // Transform alternativeNumbers from array of objects to array of strings
+    const alternativeNumbersArray: string[] = data.alternativeNumbers
+      ?.map(numObj => numObj.value)
+      .filter((num): num is string => typeof num === 'string' && num.trim() !== '') || [];
+
+    // Create the updated contact object
+    const updatedContact: Contact = {
+      ...(DUMMY_CONTACTS[contactIndex]), // Preserve existing fields like ID
+      name: data.name,
+      phoneNumber: data.phoneNumber,
+      email: data.email || undefined, // Ensure empty string becomes undefined
+      avatarUrl: data.avatarUrl || undefined,
+      familyGroupId: data.familyGroupId === '_NONE_' ? undefined : (data.familyGroupId || undefined),
+      notes: data.notes || undefined,
+      address: data.address ? {
+        street: data.address.street || undefined,
+        city: data.address.city || undefined,
+        state: data.address.state || undefined,
+        zip: data.address.zip || undefined,
+        country: data.address.country || undefined,
+      } : undefined,
+      displayNames: displayNamesArray.length > 0 ? displayNamesArray : undefined,
+      alternativeNumbers: alternativeNumbersArray.length > 0 ? alternativeNumbersArray : undefined,
+      // sources are not part of the form, so they remain unchanged from the original contact
+    };
+
+    // Update the contact in the DUMMY_CONTACTS array
+    DUMMY_CONTACTS[contactIndex] = updatedContact;
+    
+    console.log('Updated DUMMY_CONTACTS:', DUMMY_CONTACTS);
+
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // This is where you would typically update the contact in your data store
-    // For now, we'll just show a success message and redirect
-
     toast({
       title: "Contact Updated",
       description: `${data.name} has been successfully updated.`,
@@ -72,11 +123,6 @@ export default function EditContactPage() {
     );
   }
   
-  // The ContactForm's initialData prop expects Partial<Contact>.
-  // The transformation of displayNames (array) to the form's internal object structure
-  // is handled within ContactForm's defaultValues.
-  // So, we pass the `contact` object directly.
-
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-6">
@@ -93,7 +139,7 @@ export default function EditContactPage() {
       <Card className="shadow-xl">
         <CardContent className="p-6 md:p-8">
           <ContactForm 
-            initialData={contact} // Pass the raw contact (or null) here
+            initialData={contact}
             onSubmit={handleSubmit} 
             isSubmitting={isSubmitting} 
           />
@@ -102,3 +148,4 @@ export default function EditContactPage() {
     </div>
   );
 }
+
