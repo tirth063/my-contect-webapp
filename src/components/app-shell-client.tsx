@@ -74,17 +74,7 @@ export function AppShellClient({ children }: AppShellClientProps) {
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-4">
-          <Separator className="my-2" />
-           <SidebarMenuButton
-            asChild
-            isActive={pathname === '/settings'}
-            tooltip={{ children: 'Settings', side: 'right', align: 'center' }}
-            >
-            <Link href="#">
-              <Settings />
-              <span>Settings</span>
-            </Link>
-          </SidebarMenuButton>
+          {/* Settings button and separator removed */}
         </SidebarFooter>
       </Sidebar>
 
