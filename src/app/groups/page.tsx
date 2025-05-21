@@ -30,15 +30,31 @@ interface GroupWithHierarchy extends FamilyGroup {
   subGroupCount: number;
 }
 
-
+// Refactored to be iterative and use a Set for efficiency and safety
 const getAllDescendantGroupIds = (groupId: string, allGroupsData: FamilyGroup[]): string[] => {
-  const ids: string[] = [groupId];
-  const children = allGroupsData.filter(g => g.parentId === groupId);
-  for (const child of children) {
-    ids.push(...getAllDescendantGroupIds(child.id, allGroupsData));
+  const ids: Set<string> = new Set();
+  const queue: string[] = [groupId];
+  const visitedInTraversal: Set<string> = new Set(); // To avoid processing a group multiple times if linked strangely
+
+  while (queue.length > 0) {
+    const currentGroupId = queue.shift()!; // queue.length > 0 ensures this is not undefined
+
+    if (visitedInTraversal.has(currentGroupId)) {
+      continue;
+    }
+    visitedInTraversal.add(currentGroupId);
+    ids.add(currentGroupId);
+
+    const children = allGroupsData.filter(g => g.parentId === currentGroupId);
+    for (const child of children) {
+      if (child.id && !visitedInTraversal.has(child.id)) { // Ensure child.id is valid
+        queue.push(child.id);
+      }
+    }
   }
-  return Array.from(new Set(ids)); 
+  return Array.from(ids);
 };
+
 
 const getFullMemberCount = (
   groupId: string,
@@ -46,7 +62,10 @@ const getFullMemberCount = (
   allContacts: Contact[]
 ): number => {
   const relevantGroupIds = getAllDescendantGroupIds(groupId, allGroups);
-  return allContacts.filter(contact => contact.groupIds?.some(cgId => relevantGroupIds.includes(cgId))).length;
+  // This counts unique contacts who are members of the current group OR any of its descendant groups.
+  return allContacts.filter(contact => 
+    contact.groupIds?.some(cgId => relevantGroupIds.includes(cgId))
+  ).length;
 };
 
 export default function FamilyGroupsPage() {
@@ -135,9 +154,9 @@ export default function FamilyGroupsPage() {
       }
     });
     
-    DUMMY_FAMILY_GROUPS.length = 0; // Clear original
-    DUMMY_FAMILY_GROUPS.push(...updatedGlobalGroups); // Push updated
-    setGroups(updatedGlobalGroups); // Update state
+    DUMMY_FAMILY_GROUPS.length = 0; 
+    DUMMY_FAMILY_GROUPS.push(...updatedGlobalGroups); 
+    setGroups(updatedGlobalGroups); 
     
     toast({ title: "Group Deleted", description: `Group "${groupToDelete.name}" deleted. Subgroups (if any) were re-parented.`, variant: "default" });
   };
@@ -146,13 +165,13 @@ export default function FamilyGroupsPage() {
     setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
   };
   
-  const buildGroupHierarchy = (allCurrentGroups: FamilyGroup[], parentId?: string, level = 0): GroupWithHierarchy[] => {
+  const buildGroupHierarchy = (allCurrentGroups: FamilyGroup[], allContacts: Contact[], parentId?: string, level = 0): GroupWithHierarchy[] => {
     return allCurrentGroups
       .filter(group => group.parentId === parentId)
-      .sort((a, b) => a.name.localeCompare(b.name)) // Sort groups at the same level
+      .sort((a, b) => a.name.localeCompare(b.name)) 
       .map(group => {
-        const children = buildGroupHierarchy(allCurrentGroups, group.id, level + 1);
-        const memberCount = getFullMemberCount(group.id, allCurrentGroups, DUMMY_CONTACTS);
+        const children = buildGroupHierarchy(allCurrentGroups, allContacts, group.id, level + 1);
+        const memberCount = getFullMemberCount(group.id, allCurrentGroups, allContacts);
         const subGroupCount = children.length;
         return {
           ...group,
@@ -181,7 +200,7 @@ export default function FamilyGroupsPage() {
     }, [] as GroupWithHierarchy[]);
   };
   
-  const fullHierarchy = buildGroupHierarchy(groups);
+  const fullHierarchy = buildGroupHierarchy(groups, DUMMY_CONTACTS);
   const displayedGroupsHierarchy = filterHierarchyForDisplay(fullHierarchy, searchTerm);
 
   const handleViewContacts = (groupId: string) => {
@@ -272,7 +291,6 @@ export default function FamilyGroupsPage() {
         <CardContent 
           className="p-3 flex items-center justify-between gap-2 cursor-pointer"
           onClick={(e) => { 
-            // Prevent navigation if the click is on an interactive element like a button
             if ((e.target as HTMLElement).closest('button')) {
               return;
             }
@@ -456,13 +474,10 @@ export default function FamilyGroupsPage() {
                     if (!editingGroup) return true; 
                     if (g.id === editingGroup.id) return false; 
                     
-                    let currentParentIdToCheck = g.parentId;
-                    while(currentParentIdToCheck) {
-                      if (currentParentIdToCheck === editingGroup.id) return false; 
-                      const parentGroup = groups.find(p => p.id === currentParentIdToCheck);
-                      if (!parentGroup) break;
-                       currentParentIdToCheck = parentGroup.parentId;
-                    }
+                    // Prevent selecting a group's own descendant as its parent
+                    const descendantIdsOfEditingGroup = editingGroup ? getAllDescendantGroupIds(editingGroup.id, DUMMY_FAMILY_GROUPS) : [];
+                    if (descendantIdsOfEditingGroup.includes(g.id)) return false;
+                    
                     return true;
                   })
                   .map(group => ( 
