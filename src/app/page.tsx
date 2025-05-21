@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // Import useRouter
 import { ContactCard } from '@/components/contact-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 export default function AllContactsPage() {
+  const router = useRouter(); // Initialize useRouter
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -70,13 +72,15 @@ export default function AllContactsPage() {
     });
 
   const handleEdit = (contactId: string) => {
-    console.log('Edit contact:', contactId);
-    // Navigate to edit page or open modal
+    router.push(`/contacts/edit/${contactId}`);
   };
 
   const handleDelete = (contactId: string) => {
     console.log('Delete contact:', contactId);
+    // For now, just filter out from local state. 
+    // In a real app, you'd call an API and then re-fetch or update state.
     setContacts(prevContacts => prevContacts.filter(c => c.id !== contactId));
+    // Potentially show a toast message here
   };
 
   if (isLoading) {
