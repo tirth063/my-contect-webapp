@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -171,7 +172,7 @@ const Sidebar = React.forwardRef<
       collapsible = "offcanvas",
       className,
       children,
-      ...props
+      ...props // These props are for the desktop div wrapper
     },
     ref
   ) => {
@@ -185,7 +186,7 @@ const Sidebar = React.forwardRef<
             className
           )}
           ref={ref}
-          {...props}
+          {...props} // Spread props here for the non-collapsible desktop div
         >
           {children}
         </div>
@@ -194,7 +195,8 @@ const Sidebar = React.forwardRef<
 
     if (isMobile) {
       return (
-        <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+        // Removed ...props from Sheet component call
+        <Sheet open={openMobile} onOpenChange={setOpenMobile}> 
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"
@@ -215,11 +217,12 @@ const Sidebar = React.forwardRef<
     return (
       <div
         ref={ref}
-        className="group peer hidden md:block text-sidebar-foreground"
+        className={cn("group peer hidden md:block text-sidebar-foreground", className)} // className from props applied here
         data-state={state}
         data-collapsible={state === "collapsed" ? collapsible : ""}
         data-variant={variant}
         data-side={side}
+        {...props} // Other div attributes from props applied here
       >
         {/* This is what handles the sidebar gap on desktop */}
         <div
@@ -241,10 +244,9 @@ const Sidebar = React.forwardRef<
             // Adjust the padding for floating and inset variants.
             variant === "floating" || variant === "inset"
               ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)]"
-              : "group-data-[collapsible=icon]:w-[--sidebar-width-icon] group-data-[side=left]:border-r group-data-[side=right]:border-l",
-            className
+              : "group-data-[collapsible=icon]:w-[--sidebar-width-icon] group-data-[side=left]:border-r group-data-[side=right]:border-l"
+            // className for the fixed div is not taken from Sidebar props directly, it has its own specific classes
           )}
-          {...props}
         >
           <div
             data-sidebar="sidebar"
@@ -761,3 +763,5 @@ export {
   SidebarTrigger,
   useSidebar,
 }
+
+    
