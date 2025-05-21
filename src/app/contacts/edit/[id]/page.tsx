@@ -1,30 +1,29 @@
 
 'use client';
 
-import type { ChangeEvent } from 'react'; // Added for potential future use with more complex inputs
+import type { ChangeEvent } from 'react'; 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ContactForm, type ContactFormValues } from '@/components/contact-form';
-import { Card, CardContent } from '@/components/ui/card'; // Removed CardDescription as it wasn't used
+import { Card, CardContent } from '@/components/ui/card'; 
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import type { Contact, DisplayName, LabeledAddress } from '@/types';
-import { DUMMY_CONTACTS } from '@/lib/dummy-data'; // Simulating data fetching
+import { DUMMY_CONTACTS } from '@/lib/dummy-data'; 
 
 export default function EditContactPage() {
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [contact, setContact] = useState<Contact | null | undefined>(undefined); // undefined: loading, null: not found
+  const [contact, setContact] = useState<Contact | null | undefined>(undefined); 
 
   const contactId = params.id as string;
 
   useEffect(() => {
     if (contactId) {
-      // Simulate fetching contact data
       const foundContact = DUMMY_CONTACTS.find(c => c.id === contactId);
       setContact(foundContact || null);
     }
@@ -47,7 +46,6 @@ export default function EditContactPage() {
       return;
     }
 
-    // Transform displayNames from form object to array of DisplayName objects
     const displayNamesArray: DisplayName[] = [];
     if (data.displayNames) {
       if (data.displayNames.en) displayNamesArray.push({ lang: 'en', name: data.displayNames.en });
@@ -55,12 +53,10 @@ export default function EditContactPage() {
       if (data.displayNames.hi) displayNamesArray.push({ lang: 'hi', name: data.displayNames.hi });
     }
 
-    // Transform alternativeNumbers from array of objects to array of strings
     const alternativeNumbersArray: string[] = data.alternativeNumbers
       ?.map(numObj => numObj.value)
       .filter((num): num is string => typeof num === 'string' && num.trim() !== '') || [];
 
-    // Transform addresses, ensuring empty strings become undefined for optional fields
     const addressesArray: LabeledAddress[] = data.addresses?.map(addr => ({
         label: addr.label || undefined,
         street: addr.street || undefined,
@@ -80,19 +76,18 @@ export default function EditContactPage() {
       email: data.email || undefined,
       avatarUrl: data.avatarUrl || undefined,
       notes: data.notes || undefined,
-      
-      groupIds: data.groupIds || [], // Handle array of group IDs
-      
+      groupIds: data.groupIds || [], 
       addresses: addressesArray.length > 0 ? addressesArray : undefined,
       displayNames: displayNamesArray.length > 0 ? displayNamesArray : undefined,
       alternativeNumbers: alternativeNumbersArray.length > 0 ? alternativeNumbersArray : undefined,
-      // sources are not part of the form, so they remain unchanged from the original contact
+      // sources remain unchanged from original contact if not part of form
+      sources: DUMMY_CONTACTS[contactIndex].sources || ['other'],
     };
 
     DUMMY_CONTACTS[contactIndex] = updatedContact;
-    console.log('Updated DUMMY_CONTACTS:', DUMMY_CONTACTS);
+    console.log('Updated DUMMY_CONTACTS entry:', DUMMY_CONTACTS[contactIndex]);
 
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000)); 
     
     toast({
       title: "Contact Updated",
@@ -138,13 +133,13 @@ export default function EditContactPage() {
         </Button>
         <h1 className="text-3xl font-bold tracking-tight text-foreground">Edit Contact: {contact.name}</h1>
         <p className="text-muted-foreground">
-          Modify the details below for {contact.name}.
+          Modify the details below for {contact.name} in My-Contact.
         </p>
       </div>
       <Card className="shadow-xl">
         <CardContent className="p-6 md:p-8">
           <ContactForm 
-            initialData={contact} // Pass the full contact object
+            initialData={contact} 
             onSubmit={handleSubmit} 
             isSubmitting={isSubmitting} 
           />

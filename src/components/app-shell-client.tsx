@@ -18,7 +18,6 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -38,7 +37,7 @@ export function AppShellClient({ children }: AppShellClientProps) {
 
   const menuItems = [
     { href: '/', label: 'All Contacts', icon: List },
-    { href: '/groups', label: 'Family Groups', icon: Users },
+    { href: '/groups', label: 'Groups', icon: Users }, // Renamed "Family Groups" to just "Groups"
     { href: '/contacts/add', label: 'Add Contact', icon: UserPlus },
     { href: '/?action=import', label: 'Import Contacts', icon: Upload, queryAction: true },
     { href: '/?action=export', label: 'Export Contacts', icon: Download, queryAction: true },
@@ -49,10 +48,11 @@ export function AppShellClient({ children }: AppShellClientProps) {
       <Sidebar className="border-r">
         <SidebarHeader className="p-4">
           <Link href="/" className="flex items-center gap-2">
-             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 4c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm0 14c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" fill="currentColor"/>
-            </svg>
-            <h1 className="text-xl font-semibold text-primary">ContactNexus</h1>
+            <Users className="h-8 w-8 text-primary" /> {/* Generic Icon */}
+            <div>
+              <h1 className="text-xl font-semibold text-primary">My-Contact</h1>
+              <h2 className="text-xs font-medium text-primary/80">મારો સંપર્ક</h2>
+            </div>
           </Link>
         </SidebarHeader>
         <SidebarContent className="p-4">
@@ -61,7 +61,7 @@ export function AppShellClient({ children }: AppShellClientProps) {
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === item.href && !item.queryAction} // Active state only if not a query action link
+                  isActive={pathname === item.href && !item.queryAction} 
                   tooltip={{ children: item.label, side: 'right', align: 'center' }}
                 >
                   <Link href={item.href}>
@@ -74,7 +74,7 @@ export function AppShellClient({ children }: AppShellClientProps) {
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-4">
-          {/* Settings button and separator removed */}
+          {/* Footer content can be added here if needed in the future */}
         </SidebarFooter>
       </Sidebar>
 
@@ -86,10 +86,11 @@ export function AppShellClient({ children }: AppShellClientProps) {
               <span className="sr-only">Toggle sidebar</span>
             </SidebarTrigger>
              <Link href="/" className="flex items-center gap-2">
-               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 4c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm0 14c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" fill="currentColor"/>
-              </svg>
-              <span className="text-lg font-semibold text-primary">ContactNexus</span>
+               <Users className="h-7 w-7 text-primary" /> {/* Generic Icon */}
+               <div>
+                <span className="text-lg font-semibold text-primary">My-Contact</span>
+                <span className="block text-xs font-medium text-primary/80 -mt-1">મારો સંપર્ક</span>
+               </div>
             </Link>
           </div>
           <div className="ml-auto flex items-center gap-4">
@@ -97,8 +98,8 @@ export function AppShellClient({ children }: AppShellClientProps) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src="https://placehold.co/100x100.png" alt="User" data-ai-hint="user avatar" />
-                    <AvatarFallback>CN</AvatarFallback>
+                    <AvatarImage src="https://placehold.co/100x100.png" alt="User" data-ai-hint="user avatar"/>
+                    <AvatarFallback>MC</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>

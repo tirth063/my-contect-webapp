@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation'; 
+import { useRouter, usePathname } from 'next/navigation'; 
 import { DUMMY_FAMILY_GROUPS, DUMMY_CONTACTS } from '@/lib/dummy-data';
 import type { FamilyGroup, Contact, LabeledAddress } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -30,14 +30,13 @@ interface GroupWithHierarchy extends FamilyGroup {
   subGroupCount: number;
 }
 
-// Refactored to be iterative and use a Set for efficiency and safety
 const getAllDescendantGroupIds = (groupId: string, allGroupsData: FamilyGroup[]): string[] => {
   const ids: Set<string> = new Set();
   const queue: string[] = [groupId];
-  const visitedInTraversal: Set<string> = new Set(); // To avoid processing a group multiple times if linked strangely
+  const visitedInTraversal: Set<string> = new Set(); 
 
   while (queue.length > 0) {
-    const currentGroupId = queue.shift()!; // queue.length > 0 ensures this is not undefined
+    const currentGroupId = queue.shift()!; 
 
     if (visitedInTraversal.has(currentGroupId)) {
       continue;
@@ -47,7 +46,7 @@ const getAllDescendantGroupIds = (groupId: string, allGroupsData: FamilyGroup[])
 
     const children = allGroupsData.filter(g => g.parentId === currentGroupId);
     for (const child of children) {
-      if (child.id && !visitedInTraversal.has(child.id)) { // Ensure child.id is valid
+      if (child.id && !visitedInTraversal.has(child.id)) { 
         queue.push(child.id);
       }
     }
@@ -62,7 +61,6 @@ const getFullMemberCount = (
   allContacts: Contact[]
 ): number => {
   const relevantGroupIds = getAllDescendantGroupIds(groupId, allGroups);
-  // This counts unique contacts who are members of the current group OR any of its descendant groups.
   return allContacts.filter(contact => 
     contact.groupIds?.some(cgId => relevantGroupIds.includes(cgId))
   ).length;
@@ -70,6 +68,7 @@ const getFullMemberCount = (
 
 export default function FamilyGroupsPage() {
   const router = useRouter(); 
+  const pathname = usePathname();
   const [groups, setGroups] = useState<FamilyGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -83,9 +82,9 @@ export default function FamilyGroupsPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    setGroups(DUMMY_FAMILY_GROUPS);
+    setGroups([...DUMMY_FAMILY_GROUPS].sort((a,b) => a.name.localeCompare(b.name)));
     setIsLoading(false);
-  }, []);
+  }, [pathname]); // Re-fetch/re-sort if navigating back to this page
 
   const handleAddOrUpdateGroup = () => {
     if (!newGroupName.trim()) {
@@ -94,25 +93,28 @@ export default function FamilyGroupsPage() {
     }
 
     if (editingGroup) {
-      setGroups(prevGroups => prevGroups.map(g => g.id === editingGroup.id ? { ...g, name: newGroupName, description: newGroupDescription, parentId: newGroupParentId } : g));
-      DUMMY_FAMILY_GROUPS.forEach((group, index) => {
-        if (group.id === editingGroup.id) {
-          DUMMY_FAMILY_GROUPS[index] = { ...group, name: newGroupName, description: newGroupDescription, parentId: newGroupParentId };
-        }
-      });
+      const groupIndexInGlobal = DUMMY_FAMILY_GROUPS.findIndex(g => g.id === editingGroup.id);
+      if (groupIndexInGlobal !== -1) {
+        DUMMY_FAMILY_GROUPS[groupIndexInGlobal] = { 
+          ...DUMMY_FAMILY_GROUPS[groupIndexInGlobal], 
+          name: newGroupName, 
+          description: newGroupDescription, 
+          parentId: newGroupParentId 
+        };
+      }
       toast({ title: "Group Updated", description: `Group "${newGroupName}" updated successfully.`, className: "bg-accent text-accent-foreground" });
     } else {
       const newGroupData: FamilyGroup = {
-        id: `group-${Date.now()}`,
+        id: `group-${Date.now()}-${Math.random().toString(36).substring(2,7)}`,
         name: newGroupName,
         description: newGroupDescription,
         parentId: newGroupParentId,
         members: [], 
       };
-      setGroups(prevGroups => [...prevGroups, newGroupData]);
       DUMMY_FAMILY_GROUPS.push(newGroupData);
       toast({ title: "Group Created", description: `Group "${newGroupName}" created successfully.`, className: "bg-accent text-accent-foreground" });
     }
+    setGroups([...DUMMY_FAMILY_GROUPS].sort((a,b) => a.name.localeCompare(b.name))); // Update local state from source of truth
     closeModal();
   };
 
@@ -141,22 +143,27 @@ export default function FamilyGroupsPage() {
   };
 
   const handleDeleteGroup = (groupId: string) => {
-    const groupToDelete = groups.find(g => g.id === groupId);
+    const groupToDelete = DUMMY_FAMILY_GROUPS.find(g => g.id === groupId);
     if (!groupToDelete) return;
 
-    const childrenOfDeleted = groups.filter(g => g.parentId === groupId);
+    // Find children of the deleted group
+    const childrenOfDeleted = DUMMY_FAMILY_GROUPS.filter(g => g.parentId === groupId);
     
-    const updatedGlobalGroups = DUMMY_FAMILY_GROUPS.filter(g => g.id !== groupId);
+    // Re-parent children to the deleted group's parent, or make them top-level
     childrenOfDeleted.forEach(child => {
-      const childIndexInGlobal = updatedGlobalGroups.findIndex(g => g.id === child.id);
+      const childIndexInGlobal = DUMMY_FAMILY_GROUPS.findIndex(g => g.id === child.id);
       if (childIndexInGlobal !== -1) {
-        updatedGlobalGroups[childIndexInGlobal] = { ...updatedGlobalGroups[childIndexInGlobal], parentId: groupToDelete.parentId };
+        DUMMY_FAMILY_GROUPS[childIndexInGlobal].parentId = groupToDelete.parentId; // Re-parent
       }
     });
     
-    DUMMY_FAMILY_GROUPS.length = 0; 
-    DUMMY_FAMILY_GROUPS.push(...updatedGlobalGroups); 
-    setGroups(updatedGlobalGroups); 
+    // Remove the group itself
+    const groupIndex = DUMMY_FAMILY_GROUPS.findIndex(g => g.id === groupId);
+    if (groupIndex > -1) {
+      DUMMY_FAMILY_GROUPS.splice(groupIndex, 1);
+    }
+    
+    setGroups([...DUMMY_FAMILY_GROUPS].sort((a,b) => a.name.localeCompare(b.name))); // Update local state
     
     toast({ title: "Group Deleted", description: `Group "${groupToDelete.name}" deleted. Subgroups (if any) were re-parented.`, variant: "default" });
   };
@@ -194,7 +201,7 @@ export default function FamilyGroupsPage() {
       const filteredChildren = group.children ? filterHierarchyForDisplay(group.children, term) : [];
 
       if (selfMatches || filteredChildren.length > 0) {
-        acc.push({ ...group, children: filteredChildren });
+        acc.push({ ...group, children: filteredChildren.length > 0 ? filteredChildren : (selfMatches ? [] : undefined) }); // Keep empty children array if self matches
       }
       return acc;
     }, [] as GroupWithHierarchy[]);
@@ -298,7 +305,7 @@ export default function FamilyGroupsPage() {
           }}
         >
           <div className="flex items-center flex-grow min-w-0">
-            {group.children && group.children.length > 0 ? (
+            {(group.children && group.children.length > 0) || group.subGroupCount > 0 ? ( // Check subGroupCount as well for initial render
                <TooltipProvider delayDuration={100}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -314,13 +321,17 @@ export default function FamilyGroupsPage() {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" align="start" className="max-w-xs">
-                    <p className="font-semibold text-sm mb-1">Contains Subgroups:</p>
-                    <ul className="list-disc list-inside text-xs space-y-0.5">
-                      {group.children.slice(0, 5).map(child => (
-                        <li key={child.id} className="truncate" title={child.name}>{child.name}</li>
-                      ))}
-                      {group.children.length > 5 && <li className="italic">...and {group.children.length - 5} more</li>}
-                    </ul>
+                    <p className="font-semibold text-sm mb-1">Contains Subgroups ({group.subGroupCount}):</p>
+                    {group.children && group.children.length > 0 ? (
+                       <ul className="list-disc list-inside text-xs space-y-0.5">
+                        {group.children.slice(0, 5).map(child => (
+                          <li key={child.id} className="truncate" title={child.name}>{child.name}</li>
+                        ))}
+                        {group.children.length > 5 && <li className="italic">...and {group.children.length - 5} more</li>}
+                      </ul>
+                    ) : (
+                      <p className="text-xs italic">Expand to see subgroups.</p>
+                    )}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -328,7 +339,7 @@ export default function FamilyGroupsPage() {
               <div className="mr-2 h-7 w-7 flex-shrink-0"></div> 
             )}
             <div className={`flex-grow min-w-0 ${group.children && group.children.length > 0 ? '' : 'ml-0'}`}>
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-2 flex-wrap">
                 <p className="font-semibold text-md text-foreground truncate group-hover/card:text-primary transition-colors" title={group.name}>{group.name}</p>
                 <Badge variant="secondary" className="text-xs whitespace-nowrap flex-shrink-0">
                   {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
@@ -391,7 +402,7 @@ export default function FamilyGroupsPage() {
           </div>
         </CardContent>
       </Card>
-      {expandedGroups[group.id] && group.children && group.children.map(renderGroupItem)}
+      {expandedGroups[group.id] && group.children && group.children.length > 0 && group.children.map(renderGroupItem)}
     </div>
   );
   
@@ -403,7 +414,7 @@ export default function FamilyGroupsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Family & Friend Groups</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Groups</h1>
         <Button onClick={() => openModalForNew()} className="shadow-md hover:shadow-lg transition-shadow">
           <PlusCircle className="mr-2 h-5 w-5" /> Create New Group
         </Button>
@@ -469,13 +480,12 @@ export default function FamilyGroupsPage() {
                 className="w-full p-2 border rounded-md shadow-sm bg-background text-foreground border-input focus:ring-ring focus:ring-2 focus:outline-none"
               >
                 <option value="">None (Top-level group)</option>
-                {groups
+                {groups // Use local 'groups' state for rendering options
                   .filter(g => {
                     if (!editingGroup) return true; 
                     if (g.id === editingGroup.id) return false; 
                     
-                    // Prevent selecting a group's own descendant as its parent
-                    const descendantIdsOfEditingGroup = editingGroup ? getAllDescendantGroupIds(editingGroup.id, DUMMY_FAMILY_GROUPS) : [];
+                    const descendantIdsOfEditingGroup = getAllDescendantGroupIds(editingGroup.id, DUMMY_FAMILY_GROUPS); // Check against global source
                     if (descendantIdsOfEditingGroup.includes(g.id)) return false;
                     
                     return true;
@@ -495,4 +505,3 @@ export default function FamilyGroupsPage() {
     </div>
   );
 }
-    

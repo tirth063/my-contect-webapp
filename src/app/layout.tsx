@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ContactNexus',
+  title: 'My-Contact',
   description: 'Unified Contact Management by Firebase Studio',
 };
 

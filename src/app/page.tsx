@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { ContactCard } from '@/components/contact-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,12 +43,27 @@ const ALL_CONTACT_SOURCES: ContactSource[] = ['gmail', 'sim', 'whatsapp', 'other
 
 
 const getAllDescendantGroupIds = (groupId: string, allGroupsData: FamilyGroup[]): string[] => {
-  const ids: string[] = [groupId];
-  const children = allGroupsData.filter(g => g.parentId === groupId);
-  for (const child of children) {
-    ids.push(...getAllDescendantGroupIds(child.id, allGroupsData));
+  const ids: Set<string> = new Set();
+  const queue: string[] = [groupId];
+  const visitedInTraversal: Set<string> = new Set();
+
+  while (queue.length > 0) {
+    const currentGroupId = queue.shift()!;
+
+    if (visitedInTraversal.has(currentGroupId)) {
+      continue;
+    }
+    visitedInTraversal.add(currentGroupId);
+    ids.add(currentGroupId);
+
+    const children = allGroupsData.filter(g => g.parentId === currentGroupId);
+    for (const child of children) {
+      if (child.id && !visitedInTraversal.has(child.id)) {
+        queue.push(child.id);
+      }
+    }
   }
-  return Array.from(new Set(ids)); // Ensure unique IDs
+  return Array.from(ids);
 };
 
 export default function AllContactsPage() {
@@ -66,7 +81,7 @@ export default function AllContactsPage() {
 
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
-  
+
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
@@ -79,10 +94,12 @@ export default function AllContactsPage() {
     csv: 0,
   });
 
+  const pathname = usePathname(); // Ensure usePathname is called at the top level
+
   useEffect(() => {
-    setContacts(DUMMY_CONTACTS);
+    setContacts([...DUMMY_CONTACTS]);
     setAllGroups([...DUMMY_FAMILY_GROUPS].sort((a,b) => a.name.localeCompare(b.name)));
-    
+
     const counts = DUMMY_CONTACTS.reduce((acc, contact) => {
       contact.sources?.forEach(source => {
         acc[source] = (acc[source] || 0) + 1;
@@ -99,7 +116,10 @@ export default function AllContactsPage() {
       if (groupExists) {
         setSelectedGroupId(groupIdFromQuery);
       } else {
-        router.replace('/'); 
+        // Only replace if group ID is invalid and not already on root
+        if (pathname && pathname !== '/') { // Check if pathname is not null
+          router.replace('/');
+        }
         console.warn(`Group ID "${groupIdFromQuery}" from query parameter not found.`);
       }
     }
@@ -107,13 +127,23 @@ export default function AllContactsPage() {
     const action = searchParams.get('action');
     if (action === 'import') {
       setIsImportModalOpen(true);
-      router.replace('/', { scroll: false }); // Remove query param after opening
+      router.replace('/', { scroll: false });
     } else if (action === 'export') {
       setIsExportModalOpen(true);
-      router.replace('/', { scroll: false }); // Remove query param after opening
+      router.replace('/', { scroll: false });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]); // Removed router from deps to avoid re-triggering on replace
+  }, [searchParams, pathname, router]); // Added pathname and router to dependencies
+
+
+  // Effect to clear group filter if navigating to root without groupId
+  useEffect(() => {
+     const groupIdFromQuery = searchParams.get('groupId');
+     if (!groupIdFromQuery && pathname && pathname === '/') { // Check if pathname is not null
+        setSelectedGroupId(undefined);
+     }
+  }, [pathname, searchParams]);
+
 
   const filteredContacts = (() => {
     let contactsToProcess = [...contacts];
@@ -156,7 +186,7 @@ export default function AllContactsPage() {
         if (!matchesSearch && contact.groupIds) {
           const contactGroupNames = contact.groupIds
             .map(gid => allGroups.find(g => g.id === gid)?.name)
-            .filter((name): name is string => !!name); 
+            .filter((name): name is string => !!name);
           if (contactGroupNames.some(groupName => searchIn(groupName))) {
             matchesSearch = true;
           }
@@ -183,10 +213,10 @@ export default function AllContactsPage() {
   const handleDelete = (contactId: string) => {
     const contactIndex = DUMMY_CONTACTS.findIndex(c => c.id === contactId);
     if (contactIndex > -1) {
-      DUMMY_CONTACTS.splice(contactIndex, 1); 
+      DUMMY_CONTACTS.splice(contactIndex, 1);
     }
-    const updatedContacts = contacts.filter(c => c.id !== contactId);
-    setContacts(updatedContacts);
+    const updatedContacts = DUMMY_CONTACTS.filter(c => c.id !== contactId);
+    setContacts([...updatedContacts]);
 
     const counts = updatedContacts.reduce((acc, contact) => {
         contact.sources?.forEach(source => {
@@ -207,11 +237,11 @@ export default function AllContactsPage() {
     const newGroupData: FamilyGroup = {
       id: `group-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       name: newGroupName.trim(),
-      members: [], 
+      members: [],
     };
 
     DUMMY_FAMILY_GROUPS.push(newGroupData);
-    // Ensure allGroups state is updated with a new sorted array from the source of truth
+    // Update local state from the source of truth
     setAllGroups([...DUMMY_FAMILY_GROUPS].sort((a,b) => a.name.localeCompare(b.name)));
 
 
@@ -222,7 +252,7 @@ export default function AllContactsPage() {
   const openCreateGroupModal = () => setIsCreateGroupModalOpen(true);
   const closeCreateGroupModal = () => {
     setIsCreateGroupModalOpen(false);
-    setNewGroupName(''); 
+    setNewGroupName('');
   };
 
   const handleSourceSelectionChange = (source: ContactSource) => {
@@ -242,11 +272,11 @@ export default function AllContactsPage() {
     const newContactsWithIds = importedContacts.map(contact => ({
       ...contact,
       id: `contact-${Date.now()}-${Math.random().toString(36).substring(2,9)}`,
-      sources: contact.sources || ['csv'] as ContactSource[],
+      sources: contact.sources?.length ? contact.sources : ['csv'] as ContactSource[],
     }));
 
     DUMMY_CONTACTS.push(...newContactsWithIds);
-    setContacts([...DUMMY_CONTACTS]); 
+    setContacts([...DUMMY_CONTACTS]);
 
     const counts = DUMMY_CONTACTS.reduce((acc, contact) => {
       contact.sources?.forEach(source => {
@@ -255,7 +285,7 @@ export default function AllContactsPage() {
       return acc;
     }, { gmail: 0, sim: 0, whatsapp: 0, other: 0, csv: 0 } as Record<ContactSource, number>);
     setSourceCounts(counts);
-    
+
     toast({
       title: "Import Successful",
       description: `${newContactsWithIds.length} contact(s) imported from CSV.`,
@@ -279,7 +309,7 @@ export default function AllContactsPage() {
       toast({ title: "No Contacts to Export", description: "There are no contacts available to export.", variant: "default" });
       return;
     }
-    const MAX_ADDRESSES_EXPORT = 3; 
+    const MAX_ADDRESSES_EXPORT = 3;
     const MAX_ALT_NUMBERS_EXPORT = 5;
 
     const headers = [
@@ -315,7 +345,7 @@ export default function AllContactsPage() {
         row.push(addr?.zip || '');
         row.push(addr?.country || '');
       }
-      
+
       row.push(contact.displayNames?.find(dn => dn.lang === 'en')?.name || '');
       row.push(contact.displayNames?.find(dn => dn.lang === 'gu')?.name || '');
       row.push(contact.displayNames?.find(dn => dn.lang === 'hi')?.name || '');
@@ -326,14 +356,14 @@ export default function AllContactsPage() {
       for (let i = 0; i < MAX_ALT_NUMBERS_EXPORT; i++) {
         row.push(contact.alternativeNumbers?.[i] || '');
       }
-      
+
       row.push(contact.sources?.join('; ') || '');
 
       return row.map(field => `"${(field || '').replace(/"/g, '""')}"`).join(',');
     });
 
     const csvString = [headers.join(','), ...csvRows].join('\r\n');
-    triggerDownload('contacts.csv', csvString, 'text/csv;charset=utf-8;');
+    triggerDownload('my-contact-export.csv', csvString, 'text/csv;charset=utf-8;');
     toast({ title: "Export Successful", description: `${contactsToExport.length} contacts exported as CSV.`, className: "bg-accent text-accent-foreground" });
   };
 
@@ -342,7 +372,7 @@ export default function AllContactsPage() {
       toast({ title: "No Contacts to Export", description: "There are no contacts available to export.", variant: "default" });
       return;
     }
-    let txtContent = `ContactNexus Export - ${new Date().toLocaleString()}\n`;
+    let txtContent = `My-Contact Export - ${new Date().toLocaleString()}\n`;
     txtContent += `Total Contacts: ${contactsToExport.length}\n\n`;
 
     contactsToExport.forEach(contact => {
@@ -358,7 +388,7 @@ export default function AllContactsPage() {
           txtContent += `Display Name (${dn.lang.toUpperCase()}): ${dn.name}\n`;
         });
       }
-      
+
       const groupNames = contact.groupIds?.map(gid => allGroups.find(g => g.id === gid)?.name).filter(Boolean).join(', ');
       if (groupNames) txtContent += `Groups: ${groupNames}\n`;
 
@@ -381,13 +411,13 @@ export default function AllContactsPage() {
       }
       txtContent += `------------------------------\n\n`;
     });
-    triggerDownload('contacts.txt', txtContent, 'text/plain;charset=utf-8;');
+    triggerDownload('my-contact-export.txt', txtContent, 'text/plain;charset=utf-8;');
     toast({ title: "Export Successful", description: `${contactsToExport.length} contacts exported as TXT.`, className: "bg-accent text-accent-foreground" });
   };
 
 
   const handleExport = (format: 'csv' | 'txt') => {
-    const contactsToExport = contacts; // Export ALL contacts
+    const contactsToExport = contacts;
     if (format === 'csv') {
       exportContactsAsCSV(contactsToExport);
     } else if (format === 'txt') {
@@ -414,13 +444,12 @@ export default function AllContactsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">All Contacts ({filteredContacts.length})</h1>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-           {/* Buttons moved to sidebar via AppShellClient */}
            <Button onClick={openCreateGroupModal} variant="outline" className="shadow-sm hover:shadow-lg transition-shadow w-full sm:w-auto">
-            <PlusCircle className="mr-2 h-5 w-5" /> Create New Group
+            <PlusCircle className="mr-2 h-5 w-5" /> Create Group
           </Button>
           <Button asChild className="shadow-md hover:shadow-lg transition-shadow w-full sm:w-auto">
             <Link href="/contacts/add">
-              <PlusCircle className="mr-2 h-5 w-5" /> Add New Contact
+              <PlusCircle className="mr-2 h-5 w-5" /> Add Contact
             </Link>
           </Button>
         </div>
@@ -495,7 +524,7 @@ export default function AllContactsPage() {
           <p className="text-muted-foreground">
             {searchTerm || (selectedGroupId && selectedGroupId !== 'all') || selectedSources.length > 0
               ? "Try adjusting your search or filter criteria."
-              : "Add a new contact to get started."}
+              : "Add a new contact or import contacts to get started."}
           </p>
         </div>
       )}
@@ -537,9 +566,10 @@ export default function AllContactsPage() {
         isOpen={isExportModalOpen}
         onOpenChange={setIsExportModalOpen}
         onExport={handleExport}
-        contactCount={contacts.length} 
+        contactCount={contacts.length}
       />
     </div>
   );
 }
 
+    
