@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -37,11 +38,26 @@ export default function AllContactsPage() {
   }, []);
 
   const filteredContacts = contacts
-    .filter((contact) =>
-      contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contact.phoneNumber.includes(searchTerm) ||
-      (contact.email && contact.email.toLowerCase().includes(searchTerm.toLowerCase()))
-    )
+    .filter((contact) => {
+      const lowerSearchTerm = searchTerm.toLowerCase();
+      const searchIn = (value?: string) => value?.toLowerCase().includes(lowerSearchTerm) ?? false;
+
+      return (
+        searchIn(contact.name) ||
+        searchIn(contact.phoneNumber) ||
+        (contact.alternativeNumbers && contact.alternativeNumbers.some(num => searchIn(num))) ||
+        searchIn(contact.email) ||
+        searchIn(contact.notes) ||
+        (contact.address && (
+          searchIn(contact.address.street) ||
+          searchIn(contact.address.city) ||
+          searchIn(contact.address.state) ||
+          searchIn(contact.address.zip) ||
+          searchIn(contact.address.country)
+        )) ||
+        (contact.displayNames && contact.displayNames.some(dn => searchIn(dn.name)))
+      );
+    })
     .sort((a, b) => {
       if (sortOrder === 'name-asc') {
         return a.name.localeCompare(b.name);
@@ -92,7 +108,7 @@ export default function AllContactsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search contacts..."
+            placeholder="Search by name, phone, email, address, notes..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 w-full shadow-inner"

@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Mail, Phone, Edit, Trash2, MoreVertical, MapPin } from 'lucide-react';
+import { Mail, Phone, Edit, Trash2, MoreVertical, MapPin, MessageSquare } from 'lucide-react';
 import { ContactSourceIcons } from './contact-source-icons';
 import {
   DropdownMenu,
@@ -34,6 +34,14 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
 
   const displayAddress = formatAddress(contact.address);
 
+  const cleanPhoneNumberForTel = (phone: string) => {
+    return phone.replace(/[^0-9+\-]/g, '');
+  };
+
+  const cleanPhoneNumberForWhatsApp = (phone: string) => {
+    return phone.replace(/[^0-9]/g, ''); // WhatsApp links usually prefer digits only
+  };
+
   return (
     <Card className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
       <CardHeader className="flex flex-row items-start justify-between gap-4 p-4">
@@ -48,9 +56,13 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
           <div>
             <CardTitle className="text-lg">{contact.name}</CardTitle>
             {contact.email && (
-              <CardDescription className="text-xs flex items-center gap-1">
+              <a
+                href={`mailto:${contact.email}`}
+                className="text-xs flex items-center gap-1 text-muted-foreground hover:text-primary hover:underline"
+                onClick={(e) => e.stopPropagation()} // Prevent card click if any
+              >
                 <Mail className="h-3 w-3" /> {contact.email}
-              </CardDescription>
+              </a>
             )}
           </div>
         </div>
@@ -69,11 +81,38 @@ export function ContactCard({ contact, onEdit, onDelete }: ContactCardProps) {
       <CardContent className="p-4 pt-0 flex-grow">
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
           <Phone className="h-4 w-4" />
-          <span>{contact.phoneNumber}</span>
+          <a 
+            href={`tel:${cleanPhoneNumberForTel(contact.phoneNumber)}`} 
+            className="hover:text-primary hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {contact.phoneNumber}
+          </a>
+          <a
+            href={`https://wa.me/${cleanPhoneNumberForWhatsApp(contact.phoneNumber)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-green-500"
+            title="Open in WhatsApp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MessageSquare className="h-4 w-4" />
+          </a>
         </div>
         {contact.alternativeNumbers && contact.alternativeNumbers.length > 0 && (
-          <div className="text-xs text-muted-foreground mb-2">
-            Other: {contact.alternativeNumbers.join(', ')}
+          <div className="text-xs text-muted-foreground mb-2 ml-6"> {/* Indent alternative numbers slightly */}
+            Other: {contact.alternativeNumbers.map((num, idx) => (
+              <span key={idx}>
+                <a 
+                  href={`tel:${cleanPhoneNumberForTel(num)}`}
+                  className="hover:text-primary hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {num}
+                </a>
+                {idx < contact.alternativeNumbers!.length - 1 ? ', ' : ''}
+              </span>
+            ))}
           </div>
         )}
         {displayAddress && (
