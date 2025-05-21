@@ -8,7 +8,7 @@ import { ContactCard } from '@/components/contact-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DUMMY_CONTACTS, DUMMY_FAMILY_GROUPS } from '@/lib/dummy-data';
-import type { Contact, FamilyGroup } from '@/types';
+import type { Contact, FamilyGroup, ContactSource } from '@/types';
 import { PlusCircle, Search, LayoutGrid, ListFilter, Users } from 'lucide-react';
 import {
   Select,
@@ -35,6 +35,10 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
+import { sourceNameMap } from '@/components/contact-source-icons'; // Assuming sourceNameMap is exported
+
+const ALL_CONTACT_SOURCES: ContactSource[] = ['gmail', 'sim', 'whatsapp', 'other'];
+
 
 const getAllDescendantGroupIds = (groupId: string, allGroupsData: FamilyGroup[]): string[] => {
   const ids: string[] = [groupId];
@@ -56,16 +60,32 @@ export default function AllContactsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [sortOrder, setSortOrder] = useState('name-asc');
   const [selectedGroupId, setSelectedGroupId] = useState<string | undefined>(undefined);
+  const [selectedSources, setSelectedSources] = useState<ContactSource[]>([]);
 
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
 
+  const [sourceCounts, setSourceCounts] = useState<Record<ContactSource, number>>({
+    gmail: 0,
+    sim: 0,
+    whatsapp: 0,
+    other: 0,
+  });
 
   useEffect(() => {
     // Simulate fetching data
     setContacts(DUMMY_CONTACTS);
-    // Set allGroups to a copy to avoid direct mutation issues if DUMMY_FAMILY_GROUPS is modified elsewhere
     setAllGroups([...DUMMY_FAMILY_GROUPS].sort((a,b) => a.name.localeCompare(b.name)));
+    
+    // Calculate source counts
+    const counts = DUMMY_CONTACTS.reduce((acc, contact) => {
+      contact.sources?.forEach(source => {
+        acc[source] = (acc[source] || 0) + 1;
+      });
+      return acc;
+    }, {} as Record<ContactSource, number>);
+    setSourceCounts(prev => ({...prev, ...counts}));
+
     setIsLoading(false);
 
     const groupIdFromQuery = searchParams.get('groupId');
@@ -75,8 +95,6 @@ export default function AllContactsPage() {
         setSelectedGroupId(groupIdFromQuery);
       } else {
         console.warn(`Group ID "${groupIdFromQuery}" from query parameter not found.`);
-        // Optionally clear the invalid group ID from URL
-        // router.replace(router.pathname, { scroll: false }); 
       }
     }
   }, [searchParams, router]);
@@ -89,6 +107,13 @@ export default function AllContactsPage() {
       const relevantGroupIds = getAllDescendantGroupIds(selectedGroupId, allGroups);
       contactsToProcess = contactsToProcess.filter(contact =>
         contact.groupIds?.some(cgId => relevantGroupIds.includes(cgId))
+      );
+    }
+
+    // Filter by selected sources
+    if (selectedSources.length > 0) {
+      contactsToProcess = contactsToProcess.filter(contact =>
+        contact.sources?.some(cs => selectedSources.includes(cs))
       );
     }
 
@@ -115,7 +140,6 @@ export default function AllContactsPage() {
           (contact.displayNames && contact.displayNames.some(dn => searchIn(dn.name)))
         );
 
-        // Search in group names if not already matched
         if (!matchesSearch && contact.groupIds) {
           const contactGroupNames = contact.groupIds
             .map(gid => allGroups.find(g => g.id === gid)?.name)
@@ -136,7 +160,6 @@ export default function AllContactsPage() {
       if (sortOrder === 'name-desc') {
         return b.name.localeCompare(a.name);
       }
-      // Add more sort options if needed
       return 0;
     });
   })();
@@ -146,12 +169,22 @@ export default function AllContactsPage() {
   };
 
   const handleDelete = (contactId: string) => {
-    console.log('Delete contact:', contactId);
     const contactIndex = DUMMY_CONTACTS.findIndex(c => c.id === contactId);
     if (contactIndex > -1) {
       DUMMY_CONTACTS.splice(contactIndex, 1); 
     }
-    setContacts(prevContacts => prevContacts.filter(c => c.id !== contactId));
+    const updatedContacts = contacts.filter(c => c.id !== contactId);
+    setContacts(updatedContacts);
+
+    // Recalculate source counts after deletion
+    const counts = updatedContacts.reduce((acc, contact) => {
+        contact.sources?.forEach(source => {
+          acc[source] = (acc[source] || 0) + 1;
+        });
+        return acc;
+      }, { gmail: 0, sim: 0, whatsapp: 0, other: 0 } as Record<ContactSource, number>);
+    setSourceCounts(counts);
+
     toast({ title: "Contact Deleted", description: "The contact has been removed.", variant: "default" });
   };
 
@@ -167,7 +200,6 @@ export default function AllContactsPage() {
     };
 
     DUMMY_FAMILY_GROUPS.push(newGroupData);
-    // Set allGroups to a new sorted array from the updated DUMMY_FAMILY_GROUPS
     setAllGroups([...DUMMY_FAMILY_GROUPS].sort((a,b) => a.name.localeCompare(b.name)));
 
     toast({ title: "Group Created", description: `Group "${newGroupData.name}" created successfully.`, className: "bg-accent text-accent-foreground" });
@@ -178,6 +210,14 @@ export default function AllContactsPage() {
   const closeCreateGroupModal = () => {
     setIsCreateGroupModalOpen(false);
     setNewGroupName(''); 
+  };
+
+  const handleSourceSelectionChange = (source: ContactSource) => {
+    setSelectedSources(prev =>
+      prev.includes(source)
+        ? prev.filter(s => s !== source)
+        : [...prev, source]
+    );
   };
 
 
@@ -238,7 +278,7 @@ export default function AllContactsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Groups</SelectItem>
-              {allGroups.map(group => ( // The sort is now done when setAllGroups is called
+              {allGroups.map(group => (
                 <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
               ))}
             </SelectContent>
@@ -252,9 +292,15 @@ export default function AllContactsPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Filter by Source</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem>Gmail</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem>SIM</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem>WhatsApp</DropdownMenuCheckboxItem>
+              {ALL_CONTACT_SOURCES.map(source => (
+                <DropdownMenuCheckboxItem
+                  key={source}
+                  checked={selectedSources.includes(source)}
+                  onCheckedChange={() => handleSourceSelectionChange(source)}
+                >
+                  {sourceNameMap[source] || source} ({sourceCounts[source] || 0})
+                </DropdownMenuCheckboxItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -271,7 +317,9 @@ export default function AllContactsPage() {
           <LayoutGrid className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-xl font-semibold text-foreground">No Contacts Found</h3>
           <p className="text-muted-foreground">
-            {searchTerm || (selectedGroupId && selectedGroupId !== 'all') ? "Try adjusting your search or filter criteria." : "Add a new contact to get started."}
+            {searchTerm || (selectedGroupId && selectedGroupId !== 'all') || selectedSources.length > 0
+              ? "Try adjusting your search or filter criteria."
+              : "Add a new contact to get started."}
           </p>
         </div>
       )}
@@ -305,5 +353,3 @@ export default function AllContactsPage() {
     </div>
   );
 }
-
-    

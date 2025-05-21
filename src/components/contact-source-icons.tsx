@@ -1,3 +1,4 @@
+
 import type { ContactSource } from '@/types';
 import { Mail, Smartphone, MessageSquare, Globe } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -10,11 +11,12 @@ interface ContactSourceIconsProps {
 const sourceIconMap: Record<ContactSource, React.ElementType> = {
   gmail: Mail,
   sim: Smartphone,
-  whatsapp: MessageSquare,
+  whatsapp: MessageSquare, // This is fine for display, WhatsApp specific icon is on contact card.
   other: Globe,
 };
 
-const sourceNameMap: Record<ContactSource, string> = {
+// Exporting sourceNameMap to be used in other components like the filter dropdown
+export const sourceNameMap: Record<ContactSource, string> = {
   gmail: 'Gmail',
   sim: 'SIM Card',
   whatsapp: 'WhatsApp',
