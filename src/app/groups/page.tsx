@@ -20,11 +20,13 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface GroupWithHierarchy extends FamilyGroup {
   children?: GroupWithHierarchy[];
   level: number;
   memberCount: number;
+  subGroupCount: number;
 }
 
 // Helper function to recursively count members in a group and its subgroups
@@ -55,6 +57,7 @@ export default function FamilyGroupsPage() {
   const { toast } = useToast();
 
   useEffect(() => {
+    // Simulate fetching groups and contacts
     setGroups(DUMMY_FAMILY_GROUPS);
     setIsLoading(false);
   }, []);
@@ -74,7 +77,7 @@ export default function FamilyGroupsPage() {
         name: newGroupName,
         description: newGroupDescription,
         parentId: newGroupParentId,
-        members: [], // members array is part of type, but not directly used for counting here
+        members: [], 
       };
       setGroups(prevGroups => [...prevGroups, newGroupData]);
       toast({ title: "Group Created", description: `Group "${newGroupName}" created successfully.`, className: "bg-accent text-accent-foreground" });
@@ -107,11 +110,22 @@ export default function FamilyGroupsPage() {
   };
 
   const handleDeleteGroup = (groupId: string) => {
-    // This basic removal also needs to handle potential re-parenting of children or alert user.
-    // For now, it removes the group and its direct children by parentId link if any.
-    // A more robust solution would offer options for orphaned children.
-    setGroups(prevGroups => prevGroups.filter(g => g.id !== groupId && g.parentId !== groupId));
-    toast({ title: "Group Deleted", description: "Group and its direct subgroups deleted.", variant: "default" });
+    setGroups(prevGroups => {
+      const groupToDelete = prevGroups.find(g => g.id === groupId);
+      if (!groupToDelete) return prevGroups;
+
+      const childrenOfDeleted = prevGroups.filter(g => g.parentId === groupId);
+      // Re-parent children to the deleted group's parent, or make them top-level
+      const updatedChildren = childrenOfDeleted.map(child => ({ ...child, parentId: groupToDelete.parentId }));
+      
+      return prevGroups
+        .filter(g => g.id !== groupId) // Remove the group
+        .map(g => { // Update children that were re-parented
+          const reParentedChild = updatedChildren.find(uc => uc.id === g.id);
+          return reParentedChild || g;
+        });
+    });
+    toast({ title: "Group Deleted", description: "Group deleted. Subgroups were re-parented.", variant: "default" });
   };
 
   const toggleExpand = (groupId: string) => {
@@ -124,11 +138,13 @@ export default function FamilyGroupsPage() {
       .map(group => {
         const children = buildGroupHierarchy(allCurrentGroups, group.id, level + 1);
         const memberCount = getFullMemberCount(group.id, allCurrentGroups, DUMMY_CONTACTS);
+        const subGroupCount = children.length;
         return {
           ...group,
           level,
           children,
           memberCount,
+          subGroupCount,
         };
       });
   };
@@ -154,27 +170,56 @@ export default function FamilyGroupsPage() {
   const displayedGroupsHierarchy = filterHierarchyForDisplay(fullHierarchy, searchTerm);
 
   const renderGroupItem = (group: GroupWithHierarchy) => (
-    <div key={group.id} style={{ marginLeft: `${group.level * 1.5}rem` }} className="my-1"> {/* Reduced indent slightly */}
+    <div key={group.id} style={{ marginLeft: `${group.level * 1.5}rem` }} className="my-1">
       <Card className="shadow-sm hover:shadow-md transition-shadow">
         <CardContent className="p-3 flex items-center justify-between gap-2">
-          <div className="flex items-center flex-grow min-w-0"> {/* Added min-w-0 for truncation */}
-            {group.children && group.children.length > 0 && (
-              <Button variant="ghost" size="icon" onClick={() => toggleExpand(group.id)} className="mr-2 h-7 w-7 flex-shrink-0">
-                {expandedGroups[group.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              </Button>
+          <div className="flex items-center flex-grow min-w-0">
+            {group.children && group.children.length > 0 ? (
+               <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => toggleExpand(group.id)}
+                      className="mr-2 h-7 w-7 flex-shrink-0"
+                      aria-expanded={expandedGroups[group.id]}
+                      aria-controls={`subgroups-of-${group.id}`}
+                    >
+                      {expandedGroups[group.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="start" className="max-w-xs">
+                    <p className="font-semibold text-sm mb-1">Contains Subgroups:</p>
+                    <ul className="list-disc list-inside text-xs space-y-0.5">
+                      {group.children.slice(0, 5).map(child => (
+                        <li key={child.id} className="truncate" title={child.name}>{child.name}</li>
+                      ))}
+                      {group.children.length > 5 && <li className="italic">...and {group.children.length - 5} more</li>}
+                    </ul>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <div className="mr-2 h-7 w-7 flex-shrink-0"></div> // Placeholder for alignment
             )}
-            <div className={`flex-grow min-w-0 ${group.children && group.children.length > 0 ? '' : 'ml-9'}`}> {/* Indent if no expand icon, flex-grow and min-w-0 */}
-              <div className="flex items-center gap-2">
+            <div className={`flex-grow min-w-0 ${group.children && group.children.length > 0 ? '' : 'ml-0'}`}>
+              <div className="flex items-baseline gap-2">
                 <p className="font-semibold text-md text-foreground truncate" title={group.name}>{group.name}</p>
                 <Badge variant="secondary" className="text-xs whitespace-nowrap flex-shrink-0">
                   {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
                 </Badge>
+                 {group.subGroupCount > 0 && (
+                  <Badge variant="outline" className="text-xs whitespace-nowrap flex-shrink-0">
+                    {group.subGroupCount} {group.subGroupCount === 1 ? 'subgroup' : 'subgroups'}
+                  </Badge>
+                )}
               </div>
-              {group.description && <p className="text-xs text-muted-foreground truncate" title={group.description}>{group.description}</p>}
+              {group.description && <p className="text-xs text-muted-foreground truncate mt-0.5" title={group.description}>{group.description}</p>}
             </div>
           </div>
-          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0"> {/* Reduced gap for smaller screens */}
-            <Button variant="ghost" size="sm" onClick={() => openModalForNew(group.id)} className="text-xs px-1 sm:px-2"> {/* Adjusted padding */}
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            <Button variant="ghost" size="sm" onClick={() => openModalForNew(group.id)} className="text-xs px-1 sm:px-2">
               <PlusCircle className="h-3 w-3 sm:mr-1" /> <span className="hidden sm:inline">Add Subgroup</span>
             </Button>
             <Button variant="outline" size="icon" onClick={() => openModalForEdit(group)} className="h-7 w-7">
@@ -264,7 +309,19 @@ export default function FamilyGroupsPage() {
                 className="w-full p-2 border rounded-md shadow-sm bg-background text-foreground border-input focus:ring-ring focus:ring-2 focus:outline-none"
               >
                 <option value="">None (Top-level group)</option>
-                {groups.filter(g => g.id !== editingGroup?.id && !(editingGroup && getFullMemberCount(g.id, groups, DUMMY_CONTACTS) > 0 && g.parentId === editingGroup.id )).map(group => ( // Prevent self-parenting and parent becoming its own child indirectly
+                {groups
+                  .filter(g => {
+                    if (!editingGroup) return true; // All groups are valid parents for a new group
+                    if (g.id === editingGroup.id) return false; // Cannot parent to self
+                    // Prevent parenting to own descendant:
+                    let currentParent = g.parentId;
+                    while (currentParent) {
+                      if (currentParent === editingGroup.id) return false;
+                      currentParent = groups.find(p => p.id === currentParent)?.parentId;
+                    }
+                    return true;
+                  })
+                  .map(group => ( 
                   <option key={group.id} value={group.id}>{group.name}</option>
                 ))}
               </select>
@@ -280,3 +337,5 @@ export default function FamilyGroupsPage() {
   );
 }
     
+
+      
