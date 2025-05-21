@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -31,6 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 
 const MAX_ALTERNATIVE_NUMBERS = 5; // Reduced for better UI, original was 20
+const NONE_OPTION_VALUE = "_NONE_"; // Special value for the "None" option in Select
 
 const contactFormSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -60,15 +62,13 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
   const [isSuggestionModalOpen, setIsSuggestionModalOpen] = useState(false);
   const [contactNameToSuggest, setContactNameToSuggest] = useState('');
   
-  // Prepare existing contact names and group names for AI suggestions
   const [existingContactNames, setExistingContactNames] = useState<string[]>([]);
   const [familyGroupNames, setFamilyGroupNames] = useState<string[]>([]);
-  const [friendGroupNames, setFriendGroupNames] = useState<string[]>([]); // Assuming friend groups are also family groups for simplicity
+  const [friendGroupNames, setFriendGroupNames] = useState<string[]>([]);
 
   useEffect(() => {
     setExistingContactNames(DUMMY_CONTACTS.map(c => c.name));
     const allGroupNames = DUMMY_FAMILY_GROUPS.map(g => g.name);
-    // This is a simplification. In a real app, you'd differentiate family/friend groups.
     setFamilyGroupNames(allGroupNames.filter(name => name.toLowerCase().includes('parent') || name.toLowerCase().includes('sibling') || name.toLowerCase().includes('cousin')));
     setFriendGroupNames(allGroupNames.filter(name => name.toLowerCase().includes('friend')));
   }, []);
@@ -124,7 +124,6 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
   };
 
   const handleSuggestionAccepted = (suggestedGroupId: string) => {
-    // Find the group ID that matches the suggested group name
     const group = DUMMY_FAMILY_GROUPS.find(g => g.name.toLowerCase() === suggestedGroupId.toLowerCase());
     if (group) {
       form.setValue('familyGroupId', group.id);
@@ -235,14 +234,23 @@ export function ContactForm({ initialData, onSubmit, isSubmitting }: ContactForm
                         <Sparkles className="mr-1 h-3 w-3" /> Get Suggestion
                       </Button>
                     </div>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select
+                      onValueChange={(value) => {
+                        if (value === NONE_OPTION_VALUE) {
+                          field.onChange(''); // Store empty string for "None"
+                        } else {
+                          field.onChange(value);
+                        }
+                      }}
+                      value={(field.value === '' || typeof field.value === 'undefined') ? NONE_OPTION_VALUE : field.value}
+                    >
                       <FormControl>
                         <SelectTrigger className="shadow-sm">
                           <SelectValue placeholder="Select a group" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value={NONE_OPTION_VALUE}>None</SelectItem>
                         {DUMMY_FAMILY_GROUPS.map((group: FamilyGroup) => (
                           <SelectItem key={group.id} value={group.id}>
                             {group.name}
