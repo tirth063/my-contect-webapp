@@ -72,15 +72,10 @@ export default function EditContactPage() {
     );
   }
   
-  // Transform displayNames array to the object structure expected by the form
-  const initialFormValues: Partial<ContactFormValues> = {
-    ...contact,
-    displayNames: contact.displayNames?.reduce((acc, dn) => {
-      acc[dn.lang] = dn.name;
-      return acc;
-    }, {} as Record<'en' | 'gu' | 'hi', string | undefined>) || {},
-  };
-
+  // The ContactForm's initialData prop expects Partial<Contact>.
+  // The transformation of displayNames (array) to the form's internal object structure
+  // is handled within ContactForm's defaultValues.
+  // So, we pass the `contact` object directly.
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -98,7 +93,7 @@ export default function EditContactPage() {
       <Card className="shadow-xl">
         <CardContent className="p-6 md:p-8">
           <ContactForm 
-            initialData={initialFormValues} 
+            initialData={contact} // Pass the raw contact (or null) here
             onSubmit={handleSubmit} 
             isSubmitting={isSubmitting} 
           />
