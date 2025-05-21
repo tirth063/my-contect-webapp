@@ -37,7 +37,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 import { sourceNameMap } from '@/components/contact-source-icons';
 import { ImportContactsModal } from '@/components/import-contacts-modal';
-import { ExportContactsModal } from '@/components/export-contacts-modal'; // Added ExportContactsModal
+import { ExportContactsModal } from '@/components/export-contacts-modal';
 
 const ALL_CONTACT_SOURCES: ContactSource[] = ['gmail', 'sim', 'whatsapp', 'other', 'csv'];
 
@@ -211,7 +211,9 @@ export default function AllContactsPage() {
     };
 
     DUMMY_FAMILY_GROUPS.push(newGroupData);
+    // Ensure allGroups state is updated with a new sorted array from the source of truth
     setAllGroups([...DUMMY_FAMILY_GROUPS].sort((a,b) => a.name.localeCompare(b.name)));
+
 
     toast({ title: "Group Created", description: `Group "${newGroupData.name}" created successfully.`, className: "bg-accent text-accent-foreground" });
     closeCreateGroupModal();
@@ -274,11 +276,11 @@ export default function AllContactsPage() {
 
   const exportContactsAsCSV = (contactsToExport: Contact[]) => {
     if (contactsToExport.length === 0) {
-      toast({ title: "No Contacts to Export", description: "There are no contacts matching the current filters.", variant: "default" });
+      toast({ title: "No Contacts to Export", description: "There are no contacts available to export.", variant: "default" });
       return;
     }
-    const MAX_ADDRESSES_EXPORT = 3; // Align with form's MAX_ADDRESSES if needed
-    const MAX_ALT_NUMBERS_EXPORT = 5; // Align with form's MAX_ALTERNATIVE_NUMBERS
+    const MAX_ADDRESSES_EXPORT = 3; 
+    const MAX_ALT_NUMBERS_EXPORT = 5;
 
     const headers = [
       'ID', 'Name', 'PhoneNumber', 'Email', 'Notes', 'AvatarURL',
@@ -337,7 +339,7 @@ export default function AllContactsPage() {
 
   const exportContactsAsTXT = (contactsToExport: Contact[]) => {
      if (contactsToExport.length === 0) {
-      toast({ title: "No Contacts to Export", description: "There are no contacts matching the current filters.", variant: "default" });
+      toast({ title: "No Contacts to Export", description: "There are no contacts available to export.", variant: "default" });
       return;
     }
     let txtContent = `ContactNexus Export - ${new Date().toLocaleString()}\n`;
@@ -385,7 +387,7 @@ export default function AllContactsPage() {
 
 
   const handleExport = (format: 'csv' | 'txt') => {
-    const contactsToExport = filteredContacts; // Export based on current filters
+    const contactsToExport = contacts; // Export ALL contacts
     if (format === 'csv') {
       exportContactsAsCSV(contactsToExport);
     } else if (format === 'txt') {
@@ -535,8 +537,9 @@ export default function AllContactsPage() {
         isOpen={isExportModalOpen}
         onOpenChange={setIsExportModalOpen}
         onExport={handleExport}
-        contactCount={filteredContacts.length}
+        contactCount={contacts.length} 
       />
     </div>
   );
 }
+

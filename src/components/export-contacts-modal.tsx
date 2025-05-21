@@ -21,7 +21,7 @@ interface ExportContactsModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onExport: (format: ExportFormat) => void;
-  contactCount: number;
+  contactCount: number; // This will now be the total number of contacts
 }
 
 export function ExportContactsModal({
@@ -50,7 +50,7 @@ export function ExportContactsModal({
             Export Contacts
           </DialogTitle>
           <DialogDescription>
-            Choose a format to export your contacts ({contactCount} selected).
+            Choose a format to export all {contactCount} contacts.
             PDF export is not available at this time.
           </DialogDescription>
         </DialogHeader>
@@ -88,7 +88,7 @@ export function ExportContactsModal({
           </RadioGroup>
            {contactCount === 0 && (
             <p className="text-sm text-destructive text-center">
-              No contacts are selected or available for export with the current filters.
+              No contacts are available to export.
             </p>
           )}
         </div>
@@ -105,3 +105,4 @@ export function ExportContactsModal({
     </Dialog>
   );
 }
+
