@@ -64,7 +64,8 @@ export default function AllContactsPage() {
   useEffect(() => {
     // Simulate fetching data
     setContacts(DUMMY_CONTACTS);
-    setAllGroups(DUMMY_FAMILY_GROUPS);
+    // Set allGroups to a copy to avoid direct mutation issues if DUMMY_FAMILY_GROUPS is modified elsewhere
+    setAllGroups([...DUMMY_FAMILY_GROUPS].sort((a,b) => a.name.localeCompare(b.name)));
     setIsLoading(false);
 
     const groupIdFromQuery = searchParams.get('groupId');
@@ -74,8 +75,8 @@ export default function AllContactsPage() {
         setSelectedGroupId(groupIdFromQuery);
       } else {
         console.warn(`Group ID "${groupIdFromQuery}" from query parameter not found.`);
-        // Clear the invalid group ID from URL or redirect
-        // router.replace('/', { scroll: false }); // Example: clear query param
+        // Optionally clear the invalid group ID from URL
+        // router.replace(router.pathname, { scroll: false }); 
       }
     }
   }, [searchParams, router]);
@@ -118,7 +119,7 @@ export default function AllContactsPage() {
         if (!matchesSearch && contact.groupIds) {
           const contactGroupNames = contact.groupIds
             .map(gid => allGroups.find(g => g.id === gid)?.name)
-            .filter((name): name is string => !!name); // Filter out undefined names
+            .filter((name): name is string => !!name); 
           if (contactGroupNames.some(groupName => searchIn(groupName))) {
             matchesSearch = true;
           }
@@ -146,11 +147,9 @@ export default function AllContactsPage() {
 
   const handleDelete = (contactId: string) => {
     console.log('Delete contact:', contactId);
-    // This is where you would call your API to delete the contact
-    // For now, we'll filter it out from the DUMMY_CONTACTS for simulation
     const contactIndex = DUMMY_CONTACTS.findIndex(c => c.id === contactId);
     if (contactIndex > -1) {
-      DUMMY_CONTACTS.splice(contactIndex, 1); // Mutate dummy data for persistence in session
+      DUMMY_CONTACTS.splice(contactIndex, 1); 
     }
     setContacts(prevContacts => prevContacts.filter(c => c.id !== contactId));
     toast({ title: "Contact Deleted", description: "The contact has been removed.", variant: "default" });
@@ -162,17 +161,14 @@ export default function AllContactsPage() {
       return;
     }
     const newGroupData: FamilyGroup = {
-      id: `group-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`, // More unique ID
+      id: `group-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       name: newGroupName.trim(),
-      members: [], // New groups start with no members
-      // parentId can be added if creating subgroups from here is desired later
+      members: [], 
     };
 
-    // Update DUMMY_FAMILY_GROUPS (our mock "database")
     DUMMY_FAMILY_GROUPS.push(newGroupData);
-
-    // Update local state for immediate UI reflection
-    setAllGroups(prev => [...prev, newGroupData].sort((a,b) => a.name.localeCompare(b.name)));
+    // Set allGroups to a new sorted array from the updated DUMMY_FAMILY_GROUPS
+    setAllGroups([...DUMMY_FAMILY_GROUPS].sort((a,b) => a.name.localeCompare(b.name)));
 
     toast({ title: "Group Created", description: `Group "${newGroupData.name}" created successfully.`, className: "bg-accent text-accent-foreground" });
     closeCreateGroupModal();
@@ -181,14 +177,13 @@ export default function AllContactsPage() {
   const openCreateGroupModal = () => setIsCreateGroupModalOpen(true);
   const closeCreateGroupModal = () => {
     setIsCreateGroupModalOpen(false);
-    setNewGroupName(''); // Reset input
+    setNewGroupName(''); 
   };
 
 
   if (isLoading) {
     return (
       <div className="space-y-6">
-        {/* Skeleton loading state */}
         <div className="animate-pulse bg-muted h-10 w-1/3 rounded-md"></div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
@@ -234,7 +229,6 @@ export default function AllContactsPage() {
             <SelectContent>
               <SelectItem value="name-asc">Name (A-Z)</SelectItem>
               <SelectItem value="name-desc">Name (Z-A)</SelectItem>
-              {/* Add more sort options here */}
             </SelectContent>
           </Select>
           <Select value={selectedGroupId || 'all'} onValueChange={(value) => setSelectedGroupId(value === 'all' ? undefined : value)}>
@@ -244,7 +238,7 @@ export default function AllContactsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Groups</SelectItem>
-              {allGroups.sort((a,b) => a.name.localeCompare(b.name)).map(group => (
+              {allGroups.map(group => ( // The sort is now done when setAllGroups is called
                 <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
               ))}
             </SelectContent>
@@ -258,7 +252,6 @@ export default function AllContactsPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Filter by Source</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {/* These are illustrative, actual filtering logic would need to be added */}
               <DropdownMenuCheckboxItem>Gmail</DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem>SIM</DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem>WhatsApp</DropdownMenuCheckboxItem>
@@ -283,7 +276,6 @@ export default function AllContactsPage() {
         </div>
       )}
 
-      {/* Create Group Modal */}
       <Dialog open={isCreateGroupModalOpen} onOpenChange={closeCreateGroupModal}>
         <DialogContent>
           <DialogHeader>
@@ -303,7 +295,6 @@ export default function AllContactsPage() {
                 className="shadow-sm"
               />
             </div>
-            {/* Future: Could add Parent Group selection here if needed */}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closeCreateGroupModal} className="shadow-md">Cancel</Button>
