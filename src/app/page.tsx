@@ -3,13 +3,13 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation'; // Added useSearchParams
 import { ContactCard } from '@/components/contact-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DUMMY_CONTACTS, DUMMY_FAMILY_GROUPS } from '@/lib/dummy-data';
 import type { Contact, FamilyGroup } from '@/types';
-import { PlusCircle, Search, LayoutGrid, ListFilter, Users } from 'lucide-react'; // Added Users
+import { PlusCircle, Search, LayoutGrid, ListFilter, Users } from 'lucide-react'; 
 import {
   Select,
   SelectContent,
@@ -26,18 +26,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// Helper function to get a flat list of a group ID and all its descendant group IDs
 const getAllDescendantGroupIds = (groupId: string, allGroupsData: FamilyGroup[]): string[] => {
   const ids: string[] = [groupId];
   const children = allGroupsData.filter(g => g.parentId === groupId);
   for (const child of children) {
     ids.push(...getAllDescendantGroupIds(child.id, allGroupsData));
   }
-  return Array.from(new Set(ids)); // Ensure unique IDs
+  return Array.from(new Set(ids)); 
 };
 
 export default function AllContactsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams(); // Added
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [allGroups, setAllGroups] = useState<FamilyGroup[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,48 +46,60 @@ export default function AllContactsPage() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    // Simulate fetching contacts and groups
     setContacts(DUMMY_CONTACTS);
     setAllGroups(DUMMY_FAMILY_GROUPS);
     setIsLoading(false);
-  }, []);
+
+    const groupIdFromQuery = searchParams.get('groupId');
+    if (groupIdFromQuery) {
+      const groupExists = DUMMY_FAMILY_GROUPS.some(g => g.id === groupIdFromQuery);
+      if (groupExists) {
+        setSelectedGroupId(groupIdFromQuery);
+      } else {
+        console.warn(`Group ID "${groupIdFromQuery}" from query parameter not found.`);
+        // Optionally clear the invalid query param, though not strictly necessary
+        // router.replace('/', { scroll: false }); 
+      }
+    }
+  }, [searchParams, router]); // Added searchParams and router to dependencies
 
   const filteredContacts = (() => {
     let contactsToProcess = [...contacts];
 
-    // 1. Filter by selected group (including subgroups)
     if (selectedGroupId && selectedGroupId !== 'all') {
       const relevantGroupIds = getAllDescendantGroupIds(selectedGroupId, allGroups);
       contactsToProcess = contactsToProcess.filter(contact =>
-        contact.familyGroupId && relevantGroupIds.includes(contact.familyGroupId)
+        contact.groupIds?.some(cgId => relevantGroupIds.includes(cgId))
       );
     }
 
-    // 2. Filter by search term
     if (searchTerm.trim()) {
       contactsToProcess = contactsToProcess.filter((contact) => {
         const lowerSearchTerm = searchTerm.toLowerCase();
         const searchIn = (value?: string) => value?.toLowerCase().includes(lowerSearchTerm) ?? false;
-
+        
         let matchesSearch = (
           searchIn(contact.name) ||
           searchIn(contact.phoneNumber) ||
           (contact.alternativeNumbers && contact.alternativeNumbers.some(num => searchIn(num))) ||
           searchIn(contact.email) ||
           searchIn(contact.notes) ||
-          (contact.address && (
-            searchIn(contact.address.street) ||
-            searchIn(contact.address.city) ||
-            searchIn(contact.address.state) ||
-            searchIn(contact.address.zip) ||
-            searchIn(contact.address.country)
+          (contact.addresses && contact.addresses.some(addr => 
+            searchIn(addr.street) ||
+            searchIn(addr.city) ||
+            searchIn(addr.state) ||
+            searchIn(addr.zip) ||
+            searchIn(addr.country) ||
+            searchIn(addr.label)
           )) ||
           (contact.displayNames && contact.displayNames.some(dn => searchIn(dn.name)))
         );
 
-        if (!matchesSearch && contact.familyGroupId) {
-          const group = allGroups.find(g => g.id === contact.familyGroupId);
-          if (group && searchIn(group.name)) {
+        if (!matchesSearch && contact.groupIds) {
+          const contactGroupNames = contact.groupIds
+            .map(gid => allGroups.find(g => g.id === gid)?.name)
+            .filter((name): name is string => !!name);
+          if (contactGroupNames.some(groupName => searchIn(groupName))) {
             matchesSearch = true;
           }
         }
@@ -95,7 +107,6 @@ export default function AllContactsPage() {
       });
     }
 
-    // 3. Sort
     return contactsToProcess.sort((a, b) => {
       if (sortOrder === 'name-asc') {
         return a.name.localeCompare(b.name);
@@ -113,6 +124,12 @@ export default function AllContactsPage() {
 
   const handleDelete = (contactId: string) => {
     console.log('Delete contact:', contactId);
+    // This is a mock delete. For a real app, you'd call an API.
+    // Update DUMMY_CONTACTS for optimistic UI update.
+    const contactIndex = DUMMY_CONTACTS.findIndex(c => c.id === contactId);
+    if (contactIndex > -1) {
+      DUMMY_CONTACTS.splice(contactIndex, 1);
+    }
     setContacts(prevContacts => prevContacts.filter(c => c.id !== contactId));
   };
 
